@@ -1,0 +1,30 @@
+# 입출력 (사용자 데이터, 절대 커밋 금지)
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+
+# 카톡 export 데이터
+*.txt
+*.csv
+*.xlsx
+!samples/*.txt
+!samples/*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# 임시
+_tmp/
+*.log
+
+# 도구 상태 (자동 생성)
+.omc/
+.bkit/
+.claude/

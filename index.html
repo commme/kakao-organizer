@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src https://fonts.gstatic.com https://cdn.jsdelivr.net; img-src 'self' blob: data:; connect-src 'self' https://generativelanguage.googleapis.com;">
+<title>카톡 정리기 v2 — Inbox Zero</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0a0a0f;
+  --card: #16161e;
+  --card-hover: #1c1c26;
+  --border: #2a2a35;
+  --text: #e4e4e7;
+  --muted: #71717a;
+  --accent-1: #a855f7;
+  --accent-2: #ec4899;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(168, 85, 247, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Layout */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(10, 10, 15, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+nav .brand {
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+nav .tabs { display: flex; gap: 4px; flex: 1; }
+nav .tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  padding: 7px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+nav .tab:hover { color: var(--text); background: var(--card); }
+nav .tab.active {
+  color: var(--text);
+  background: var(--card);
+  border-color: var(--border);
+}
+nav .tab .count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: var(--border);
+  color: var(--text);
+  font-weight: 700;
+}
+nav .tab.active .count {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  color: white;
+}
+nav .icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+nav .icon-btn:hover { color: var(--text); background: var(--card); }
+
+main {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  min-height: calc(100vh - 60px);
+}
+
+.panel { display: none; }
+.panel.active { display: block; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Cards */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 16px;
+}
+.card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card .desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+/* Buttons */
+.btn {
+  background: var(--card-hover);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover:not(:disabled) { background: var(--border); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border-color: transparent;
+  color: white;
+}
+.btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
+.btn.danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+.btn.danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.2); }
+.btn.success { background: rgba(16, 185, 129, 0.1); color: var(--success); border-color: rgba(16, 185, 129, 0.3); }
+.btn.success:hover:not(:disabled) { background: rgba(16, 185, 129, 0.2); }
+.btn.small { padding: 5px 10px; font-size: 12px; }
+
+/* Inputs */
+input, select, textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent-1); }
+label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* Drop zone */
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 50px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.dropzone:hover, .dropzone.over {
+  border-color: var(--accent-1);
+  background: rgba(168, 85, 247, 0.05);
+}
+.dropzone .icon { font-size: 42px; margin-bottom: 12px; }
+.dropzone .title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.dropzone .sub { font-size: 12px; color: var(--muted); }
+.dropzone input[type=file] { display: none; }
+
+/* Progress */
+.progress {
+  background: var(--bg);
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+.progress > div {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  width: 0%;
+  transition: width 0.3s;
+}
+
+/* Review (Inbox Zero) */
+.review-stage {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 30px;
+}
+.review-counter {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.review-counter .num {
+  font-size: 18px;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 800;
+}
+.review-card {
+  width: 100%;
+  max-width: 600px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px;
+  position: relative;
+  transition: all 0.25s;
+}
+.review-card.swipe-left { transform: translateX(-120%) rotate(-8deg); opacity: 0; }
+.review-card.swipe-right { transform: translateX(120%) rotate(8deg); opacity: 0; }
+
+.review-card .top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.badge-type { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.badge-type.memo { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.badge-type.photo { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+.badge-type.file { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.badge-cat {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2));
+  color: var(--text);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  cursor: pointer;
+  font-weight: 800;
+}
+.badge-cat:hover { background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(236, 72, 153, 0.4)); }
+.badge-cat.low {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+.confidence-bar {
+  display: inline-block;
+  width: 30px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.confidence-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+.confidence-bar.med > span { background: var(--warning); }
+.confidence-bar.low > span { background: var(--danger); }
+
+.review-card .url-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+.review-card .url-bar a {
+  color: var(--info);
+  text-decoration: none;
+}
+.review-card .url-bar a:hover { text-decoration: underline; }
+
+.review-card .content {
+  font-size: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--text);
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.review-card .meta {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  width: 100%;
+  max-width: 600px;
+}
+.review-actions .big-btn {
+  flex: 1;
+  padding: 18px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+.review-actions .big-btn .key {
+  font-size: 11px;
+  opacity: 0.6;
+  font-weight: 600;
+}
+.review-actions .discard {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.review-actions .discard:hover { background: rgba(239, 68, 68, 0.2); }
+.review-actions .keep {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.review-actions .keep:hover { background: rgba(16, 185, 129, 0.2); }
+
+.review-shortcuts {
+  margin-top: 20px;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  gap: 16px;
+}
+.kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 10px;
+  margin: 0 2px;
+}
+
+.review-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.review-empty .big { font-size: 40px; margin-bottom: 12px; }
+
+/* Archive */
+.archive-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.archive-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+}
+.cat-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.cat-chip {
+  padding: 5px 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.cat-chip:hover { color: var(--text); border-color: var(--accent-1); }
+.cat-chip.active {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border-color: transparent;
+  color: white;
+}
+.cat-chip .n {
+  display: inline-block;
+  margin-left: 4px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.archive-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 13px;
+  position: relative;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.archive-item:hover { background: var(--card-hover); border-color: var(--accent-1); }
+.archive-item .a-top { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.archive-item .a-cat { font-size: 10px; padding: 2px 7px; border-radius: 8px; background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 700; }
+.archive-item .a-domain { font-size: 11px; color: var(--muted); }
+.archive-item .a-content {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.archive-item .a-meta { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; }
+.archive-item .a-actions { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
+.archive-item:hover .a-actions { display: flex; }
+.archive-item .a-actions button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+.archive-item .a-actions button:hover { color: var(--text); border-color: var(--danger); }
+
+.archive-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  grid-column: 1 / -1;
+}
+
+/* Modal */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 50px 20px;
+  overflow-y: auto;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal .close { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 22px; line-height: 1; padding: 0; }
+.modal .close:hover { color: var(--text); }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 200;
+  opacity: 0;
+  transition: all 0.25s;
+  pointer-events: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.toast.show { opacity: 1; bottom: 36px; }
+
+/* Settings list rows */
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: none; }
+.row input[type=text] { flex: 1; }
+
+footer {
+  text-align: center;
+  padding: 30px 20px 20px;
+  font-size: 11px;
+  color: var(--muted);
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 600px) {
+  nav { padding: 10px 14px; gap: 12px; }
+  nav .brand { font-size: 14px; }
+  nav .tab { padding: 6px 10px; font-size: 12px; }
+  main { padding: 14px; }
+  .review-card { padding: 18px; }
+  .review-actions .big-btn { padding: 14px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">🗂 카톡 정리기 v2</div>
+  <div class="tabs">
+    <button class="tab active" data-panel="import">📥 입력</button>
+    <button class="tab" data-panel="review">🃏 검토 <span class="count" id="cnt-pending">0</span></button>
+    <button class="tab" data-panel="archive">📚 보관함 <span class="count" id="cnt-kept">0</span></button>
+  </div>
+  <button class="icon-btn" title="설정" onclick="openSettings()">⚙️</button>
+</nav>
+
+<main>
+
+<!-- 입력 패널 -->
+<div class="panel active" id="panel-import">
+  <div class="card">
+    <h2>📥 카톡 데이터 가져오기</h2>
+    <p class="desc">카카오톡 PC > 채팅방 > 더보기 > 대화 내용 내보내기로 받은 .txt 또는 .csv 파일을 끌어다 놓으세요.</p>
+    <label class="dropzone" id="dz">
+      <input type="file" id="file-input" accept=".txt,.csv" multiple>
+      <div class="icon">📂</div>
+      <div class="title">파일을 끌어다 놓거나 클릭</div>
+      <div class="sub">.txt / .csv (여러 개 가능)</div>
+    </label>
+    <div id="file-list" style="margin-top: 14px; font-size: 12px; color: var(--muted);"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚙️ 분석 옵션</h2>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 200px;">
+        <label>날짜 범위 (선택)</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="date" id="date-from" style="flex: 1;">
+          <span style="color: var(--muted);">~</span>
+          <input type="date" id="date-to" style="flex: 1;">
+        </div>
+      </div>
+      <div style="flex: 1; min-width: 200px;">
+        <label>분류 방식</label>
+        <select id="classify-mode">
+          <option value="domain">도메인 매핑만 (빠름, AI 안 씀)</option>
+          <option value="ai" selected>AI 보조 (도메인 + Gemini)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
+      <button class="btn primary" id="btn-analyze" onclick="startAnalysis()" disabled>⚡ 분석 시작</button>
+      <span id="analyze-status" style="font-size: 12px; color: var(--muted);"></span>
+    </div>
+    <div class="progress" id="progress-bar" style="display: none;"><div></div></div>
+  </div>
+</div>
+
+<!-- 검토 패널 (Inbox Zero) -->
+<div class="panel" id="panel-review">
+  <div id="review-content"></div>
+</div>
+
+<!-- 보관함 패널 -->
+<div class="panel" id="panel-archive">
+  <div class="card">
+    <div class="archive-toolbar">
+      <input type="text" class="archive-search" id="archive-search" placeholder="🔍 검색 (내용·도메인·카테고리)" oninput="renderArchive()">
+      <button class="btn success" onclick="exportExcel()">📊 엑셀 다운로드</button>
+      <button class="btn small" onclick="showTab('trash')">🗑 휴지통</button>
+    </div>
+    <div class="cat-chips" id="cat-chips"></div>
+    <div class="archive-grid" id="archive-grid"></div>
+  </div>
+</div>
+
+<!-- 휴지통 패널 -->
+<div class="panel" id="panel-trash">
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h2 style="margin: 0;">🗑 휴지통</h2>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn small" onclick="showTab('archive')">← 보관함</button>
+        <button class="btn small danger" onclick="emptyTrash()">전부 비우기</button>
+      </div>
+    </div>
+    <p class="desc">삭제한 항목입니다. 복원하거나 영구 삭제할 수 있습니다.</p>
+    <div class="archive-grid" id="trash-grid"></div>
+  </div>
+</div>
+
+</main>
+
+<!-- 설정 모달 -->
+<div class="modal-bg" id="modal-settings">
+  <div class="modal">
+    <h2>⚙️ 설정 <button class="close" onclick="closeSettings()">×</button></h2>
+
+    <div style="margin-bottom: 20px;">
+      <label>Gemini API 키 <span style="color: var(--muted);">(선택, 없으면 도메인 매핑만)</span></label>
+      <input type="password" id="setting-key" placeholder="AIza...">
+      <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+        키는 브라우저에만 저장됩니다.
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color: var(--info);">키 발급 →</a>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label>Gemini 모델</label>
+      <select id="setting-model">
+        <option value="gemini-2.5-flash">gemini-2.5-flash (빠름, 무료 티어 ★)</option>
+        <option value="gemini-2.5-pro">gemini-2.5-pro (정확)</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label>카테고리 <button class="btn small" onclick="resetCategories()" style="float: right;">기본값 복원</button></label>
+      <div id="cat-edit-list" style="max-height: 200px; overflow-y: auto;"></div>
+      <div style="display: flex; gap: 6px; margin-top: 8px;">
+        <input type="text" id="new-cat-input" placeholder="새 카테고리" style="flex: 1;">
+        <button class="btn primary small" onclick="addCategory()">추가</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label>도메인 매핑 (학습됨: <span id="learned-count">0</span>개)</label>
+      <p class="desc" style="margin: 4px 0;">검토 중 카테고리를 수정하면 자동 학습됩니다.</p>
+      <button class="btn small" onclick="showLearnedMap()">학습 매핑 보기</button>
+      <button class="btn small danger" onclick="clearLearnedMap()">학습 초기화</button>
+    </div>
+
+    <div style="border-top: 1px solid var(--border); padding-top: 16px; display: flex; gap: 8px;">
+      <button class="btn primary" onclick="saveSettings()">저장</button>
+      <button class="btn danger" onclick="clearAllData()">전체 데이터 초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학습 매핑 보기 모달 -->
+<div class="modal-bg" id="modal-learned">
+  <div class="modal">
+    <h2>📚 학습된 매핑 <button class="close" onclick="document.getElementById('modal-learned').classList.remove('show')">×</button></h2>
+    <div id="learned-list" style="font-size: 12px;"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>© 2026 COMMME. All rights reserved.</footer>
+
+<script>
+'use strict';
+
+/* ===========================================================
+   Storage
+   =========================================================== */
+const NS = 'kk2_';
+const S = {
+  get:  k => localStorage.getItem(NS + k) || '',
+  set:  (k, v) => localStorage.setItem(NS + k, v),
+  del:  k => localStorage.removeItem(NS + k),
+  getJSON: (k, d = []) => { try { const v = localStorage.getItem(NS + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  setJSON: (k, v) => localStorage.setItem(NS + k, JSON.stringify(v)),
+};
+
+/* ===========================================================
+   Defaults
+   =========================================================== */
+const DEFAULT_CATEGORIES = [
+  'AI', 'SNS', '개발', '디자인', '마케팅', '쇼핑', '뉴스', '블로그',
+  '음식', '여행', '금융', '러닝/라이프', '커리어', '업무', 'SAP', '미분류'
+];
+
+const DEFAULT_DOMAIN_MAP = {
+  // AI
+  'chat.openai.com': 'AI', 'chatgpt.com': 'AI', 'openai.com': 'AI',
+  'claude.ai': 'AI', 'huggingface.co': 'AI', 'perplexity.ai': 'AI',
+  'gemini.google.com': 'AI', 'aistudio.google.com': 'AI', 'anthropic.com': 'AI',
+  // SNS
+  'instagram.com': 'SNS', 'threads.net': 'SNS',
+  'youtube.com': 'SNS', 'youtu.be': 'SNS', 'm.youtube.com': 'SNS',
+  'twitter.com': 'SNS', 'x.com': 'SNS', 'linkedin.com': 'SNS',
+  'facebook.com': 'SNS', 'm.facebook.com': 'SNS', 'fb.com': 'SNS',
+  'tiktok.com': 'SNS', 'vm.tiktok.com': 'SNS',
+  'pinterest.com': 'SNS', 'pin.it': 'SNS',
+  // 개발
+  'github.com': '개발', 'gist.github.com': '개발',
+  'stackoverflow.com': '개발', 'npmjs.com': '개발', 'pypi.org': '개발',
+  'developer.mozilla.org': '개발', 'dev.to': '개발', 'vercel.com': '개발',
+  'netlify.com': '개발', 'cloudflare.com': '개발',
+  // 업무 / 노트
+  'notion.so': '업무', 'notion.site': '업무',
+  'docs.google.com': '업무', 'drive.google.com': '업무', 'sheets.google.com': '업무',
+  'slack.com': '업무', 'zoom.us': '업무', 'figma.com': '디자인',
+  // 네이버
+  'naver.com': '미분류', 'blog.naver.com': '블로그', 'news.naver.com': '뉴스',
+  'n.news.naver.com': '뉴스', 'post.naver.com': '블로그',
+  'm.naver.com': '미분류', 'search.naver.com': '미분류', 'naver.me': '미분류',
+  'map.naver.com': '미분류', 'smartstore.naver.com': '쇼핑', 'shopping.naver.com': '쇼핑',
+  // 카카오
+  'kakao.com': '미분류', 'brunch.co.kr': '블로그', 'map.kakao.com': '미분류',
+  // 블로그
+  'tistory.com': '블로그', 'velog.io': '블로그', 'medium.com': '블로그',
+  'substack.com': '블로그', 'wordpress.com': '블로그',
+  // 뉴스
+  'chosun.com': '뉴스', 'donga.com': '뉴스', 'hani.co.kr': '뉴스',
+  'khan.co.kr': '뉴스', 'mk.co.kr': '뉴스', 'sedaily.com': '뉴스',
+  'bbc.com': '뉴스', 'cnn.com': '뉴스', 'yna.co.kr': '뉴스',
+  // 쇼핑
+  'coupang.com': '쇼핑', '11st.co.kr': '쇼핑', 'gmarket.co.kr': '쇼핑',
+  'amazon.com': '쇼핑', 'aliexpress.com': '쇼핑', 'musinsa.com': '쇼핑',
+  '29cm.co.kr': '쇼핑', 'ohou.se': '쇼핑',
+  // 디자인
+  'dribbble.com': '디자인', 'behance.net': '디자인', 'awwwards.com': '디자인',
+  // 음식
+  'baemin.com': '음식', 'yogiyo.co.kr': '음식', 'catchtable.co.kr': '음식',
+  'mangoplate.com': '음식', 'siksinhot.com': '음식',
+  // 여행
+  'airbnb.com': '여행', 'booking.com': '여행', 'agoda.com': '여행',
+  'tripadvisor.com': '여행', 'skyscanner.co.kr': '여행', 'yanolja.com': '여행',
+  // 금융
+  'toss.im': '금융', 'kakaopay.com': '금융', 'kbstar.com': '금융',
+  // 학습
+  'udemy.com': '러닝/라이프', 'coursera.org': '러닝/라이프',
+  'inflearn.com': '러닝/라이프', 'class101.net': '러닝/라이프',
+};
+
+const MEMO_KEYWORDS = [
+  { re: /회의|미팅|meeting|발표|프레젠|agenda/i, cat: '업무' },
+  { re: /맛집|레스토랑|카페|음식|치킨|피자|배달|메뉴/i, cat: '음식' },
+  { re: /운동|헬스|요가|러닝|다이어트|건강/i, cat: '러닝/라이프' },
+  { re: /할일|todo|체크|리스트|장보기|마트/i, cat: '러닝/라이프' },
+  { re: /여행|비행기|호텔|숙소|관광|휴가/i, cat: '여행' },
+  { re: /코딩|개발|버그|서버|API|프론트|백엔드/i, cat: '개발' },
+  { re: /디자인|로고|UI|UX|컬러|폰트/i, cat: '디자인' },
+  { re: /광고|마케팅|캠페인|CTR|전환|퍼포먼스/i, cat: '마케팅' },
+  { re: /이력서|면접|채용|연봉|이직|포트폴리오/i, cat: '커리어' },
+  { re: /GPT|AI|인공지능|프롬프트|챗봇|생성형|LLM/i, cat: 'AI' },
+  { re: /SAP|ERP|ABAP|BTP|S\/4HANA|Fiori/i, cat: 'SAP' },
+  { re: /주식|투자|코인|ETF|배당|적금|대출/i, cat: '금융' },
+  { re: /쇼핑|할인|쿠폰|세일|구매|주문/i, cat: '쇼핑' },
+];
+
+/* ===========================================================
+   Utility
+   =========================================================== */
+function $(id) { return document.getElementById(id); }
+function $$(s)  { return document.querySelectorAll(s); }
+function uid() { return Math.random().toString(36).slice(2, 11); }
+function toast(msg, ms = 2200) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+function isSafeUrl(u) {
+  try { const p = new URL(u); return p.protocol === 'http:' || p.protocol === 'https:'; }
+  catch { return false; }
+}
+function parseUrl(u) {
+  try { const p = new URL(u); return { hostname: p.hostname.replace(/^www\./, ''), href: p.href }; }
+  catch { return null; }
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dt)) return '';
+  return dt.toISOString().slice(0, 10);
+}
+
+/* ===========================================================
+   Categories
+   =========================================================== */
+function getCategories() {
+  const c = S.getJSON('categories', null);
+  return c && c.length ? c : [...DEFAULT_CATEGORIES];
+}
+function saveCategories(cs) { S.setJSON('categories', cs); }
+
+function getDomainMap() {
+  const learned = S.getJSON('domain_learned', {});
+  return { ...DEFAULT_DOMAIN_MAP, ...learned };
+}
+function learnDomain(domain, category) {
+  if (!domain || !category) return;
+  const learned = S.getJSON('domain_learned', {});
+  learned[domain] = category;
+  S.setJSON('domain_learned', learned);
+}
+function getLearned() { return S.getJSON('domain_learned', {}); }
+
+/* ===========================================================
+   Items (data model)
+   item: {
+     id, type: 'link'|'memo'|'photo'|'file',
+     content, url, domain, date,
+     category, confidence (0-1), source: 'domain'|'ai'|'keyword'|'manual',
+     status: 'pending'|'kept'|'discarded',
+     reviewedAt
+   }
+   =========================================================== */
+function getItems() { return S.getJSON('items', []); }
+function saveItems(items) { S.setJSON('items', items); }
+function updateItem(id, patch) {
+  const items = getItems();
+  const i = items.findIndex(x => x.id === id);
+  if (i >= 0) { items[i] = { ...items[i], ...patch }; saveItems(items); }
+  return items[i];
+}
+
+/* ===========================================================
+   Parser — KakaoTalk TXT and CSV
+   =========================================================== */
+function parseFile(name, text) {
+  if (name.toLowerCase().endsWith('.csv')) return parseCsv(text);
+  return parseKakaoTxt(text);
+}
+
+function parseCsv(text) {
+  // simple CSV: Date,User,Message  OR  ts,from,text
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const items = [];
+  // detect header
+  const hasHeader = /date|time|message|content/i.test(lines[0]);
+  for (let i = hasHeader ? 1 : 0; i < lines.length; i++) {
+    const cells = parseCsvLine(lines[i]);
+    if (!cells.length) continue;
+    const date = cells[0] || '';
+    const content = cells[cells.length - 1] || '';
+    if (!content.trim()) continue;
+    items.push(makeItemFromText(content, date));
+  }
+  return items;
+}
+
+function parseCsvLine(line) {
+  // RFC 4180 light
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseKakaoTxt(text) {
+  // KakaoTalk PC export format:
+  //   [이름] [오후 3:14] 메시지
+  //   --------------- 2026년 4월 17일 금요일 ---------------
+  const items = [];
+  const lines = text.split(/\r?\n/);
+  let curDate = '';
+  const dateRe = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/;
+  const lineRe = /^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$/;
+  let buffer = null;
+  for (const line of lines) {
+    const dm = line.match(dateRe);
+    if (dm) {
+      curDate = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
+      if (buffer) { items.push(makeItemFromText(buffer.text, buffer.date)); buffer = null; }
+      continue;
+    }
+    const lm = line.match(lineRe);
+    if (lm) {
+      if (buffer) items.push(makeItemFromText(buffer.text, buffer.date));
+      buffer = { text: lm[3], date: curDate };
+    } else if (buffer && line.trim()) {
+      buffer.text += '\n' + line;
+    }
+  }
+  if (buffer) items.push(makeItemFromText(buffer.text, buffer.date));
+  return items;
+}
+
+function makeItemFromText(text, date) {
+  text = String(text || '').trim();
+  // detect link
+  const urlMatch = text.match(/https?:\/\/[^\s]+/);
+  let type = 'memo', url = '', domain = '';
+  if (/사진|이미지|Photo/i.test(text) && text.length < 30) type = 'photo';
+  else if (/파일|Movie|동영상/i.test(text) && text.length < 30) type = 'file';
+  else if (urlMatch) {
+    type = 'link';
+    url = urlMatch[0];
+    const p = parseUrl(url);
+    if (p) domain = p.hostname;
+  }
+  return {
+    id: uid(),
+    type, content: text, url, domain, date,
+    category: '', confidence: 0, source: '',
+    status: 'pending', reviewedAt: null,
+  };
+}
+
+/* ===========================================================
+   Classifier
+   =========================================================== */
+function classifyByDomain(item) {
+  if (!item.domain) return null;
+  const map = getDomainMap();
+  if (map[item.domain]) return { category: map[item.domain], confidence: 0.95, source: 'domain' };
+  // partial match
+  for (const [d, cat] of Object.entries(map)) {
+    if (item.domain.endsWith('.' + d)) return { category: cat, confidence: 0.85, source: 'domain' };
+  }
+  return null;
+}
+
+function classifyByKeyword(item) {
+  for (const k of MEMO_KEYWORDS) {
+    if (k.re.test(item.content)) return { category: k.cat, confidence: 0.7, source: 'keyword' };
+  }
+  return null;
+}
+
+async function classifyByAI(items) {
+  const key = S.get('gemini_key');
+  if (!key) return items.map(it => ({ id: it.id, category: '미분류', confidence: 0.1, source: 'none' }));
+  const model = S.get('gemini_model') || 'gemini-2.5-flash';
+  const cats = getCategories();
+
+  const prompt = `다음 카톡 메시지를 카테고리별로 분류하고 신뢰도(0-1)를 매기세요.
+사용 가능한 카테고리: ${cats.join(', ')}
+신뢰도 기준: 1.0 = 매우 확실, 0.7 = 보통, 0.3 = 추측, 0.1 = 모름
+JSON 배열만 출력. 추가 텍스트 금지.
+
+입력:
+${items.map((it, i) => `${i}. ${(it.content || '').slice(0, 200).replace(/\n/g, ' ')}`).join('\n')}
+
+출력 형식:
+[{"i":0,"cat":"AI","conf":0.9},{"i":1,"cat":"음식","conf":0.6}, ...]`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
+      })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const txt = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const parsed = JSON.parse(txt);
+    const valid = new Set(cats);
+    return items.map((it, i) => {
+      const found = parsed.find(p => p.i === i);
+      const cat = found && valid.has(found.cat) ? found.cat : '미분류';
+      const conf = found ? Number(found.conf) || 0.3 : 0.1;
+      return { id: it.id, category: cat, confidence: conf, source: 'ai' };
+    });
+  } catch (e) {
+    console.error('AI classify failed:', e);
+    toast('AI 분류 실패: ' + e.message);
+    return items.map(it => ({ id: it.id, category: '미분류', confidence: 0.1, source: 'none' }));
+  }
+}
+
+async function runClassification(items) {
+  const mode = $('classify-mode').value;
+  const result = items.map(it => ({ ...it }));
+  const aiNeeded = [];
+  for (const it of result) {
+    const byDom = classifyByDomain(it);
+    if (byDom) { Object.assign(it, byDom); continue; }
+    const byKw = classifyByKeyword(it);
+    if (byKw) { Object.assign(it, byKw); continue; }
+    if (mode === 'ai') aiNeeded.push(it);
+    else { it.category = '미분류'; it.confidence = 0.1; it.source = 'none'; }
+  }
+  if (aiNeeded.length && mode === 'ai') {
+    // batch in chunks of 25
+    const total = aiNeeded.length;
+    for (let i = 0; i < total; i += 25) {
+      const chunk = aiNeeded.slice(i, i + 25);
+      setProgress((i / total) * 100, `AI 분류 중... ${i}/${total}`);
+      const aiRes = await classifyByAI(chunk);
+      for (const r of aiRes) {
+        const it = result.find(x => x.id === r.id);
+        if (it) { it.category = r.category; it.confidence = r.confidence; it.source = r.source; }
+      }
+    }
+    setProgress(100, '');
+  }
+  return result;
+}
+
+/* ===========================================================
+   Tab navigation
+   =========================================================== */
+function showTab(name) {
+  $$('.panel').forEach(p => p.classList.remove('active'));
+  $$('.tab').forEach(b => b.classList.remove('active'));
+  const panel = $('panel-' + name);
+  if (panel) panel.classList.add('active');
+  const tab = document.querySelector(`.tab[data-panel="${name}"]`);
+  if (tab) tab.classList.add('active');
+  if (name === 'review') renderReview();
+  if (name === 'archive') renderArchive();
+  if (name === 'trash') renderTrash();
+}
+
+/* ===========================================================
+   Import flow
+   =========================================================== */
+let pendingFiles = [];
+
+function setupDropzone() {
+  const dz = $('dz'), input = $('file-input');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('over');
+    handleFiles([...e.dataTransfer.files]);
+  });
+  input.addEventListener('change', e => handleFiles([...e.target.files]));
+}
+
+function handleFiles(files) {
+  pendingFiles = files.filter(f => /\.(txt|csv)$/i.test(f.name));
+  const list = $('file-list');
+  list.textContent = '';
+  if (!pendingFiles.length) {
+    list.textContent = '⚠️ .txt 또는 .csv 파일만 가능';
+    $('btn-analyze').disabled = true;
+    return;
+  }
+  for (const f of pendingFiles) {
+    const div = document.createElement('div');
+    div.textContent = `📄 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
+    list.appendChild(div);
+  }
+  $('btn-analyze').disabled = false;
+}
+
+function setProgress(pct, label) {
+  const bar = $('progress-bar');
+  if (pct === 0 && !label) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  bar.firstElementChild.style.width = pct + '%';
+  $('analyze-status').textContent = label || '';
+}
+
+async function startAnalysis() {
+  if (!pendingFiles.length) return;
+  $('btn-analyze').disabled = true;
+  setProgress(5, '파일 읽는 중...');
+  let allItems = [];
+  for (const f of pendingFiles) {
+    const text = await f.text();
+    const parsed = parseFile(f.name, text);
+    allItems = allItems.concat(parsed);
+  }
+  setProgress(20, `${allItems.length}개 항목 발견`);
+
+  // date range filter
+  const from = $('date-from').value, to = $('date-to').value;
+  if (from) allItems = allItems.filter(it => !it.date || it.date >= from);
+  if (to)   allItems = allItems.filter(it => !it.date || it.date <= to);
+
+  // dedupe by content
+  const seen = new Set();
+  allItems = allItems.filter(it => {
+    const k = (it.content || '').trim().slice(0, 200);
+    if (!k || seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  setProgress(30, `중복 제거 후 ${allItems.length}개 분류 시작...`);
+
+  const classified = await runClassification(allItems);
+  // merge with existing pending items (don't lose previous work)
+  const existing = getItems();
+  const existingIds = new Set(existing.map(x => x.id));
+  for (const it of classified) {
+    if (!existingIds.has(it.id)) existing.push(it);
+  }
+  saveItems(existing);
+  setProgress(0, '');
+  $('btn-analyze').disabled = false;
+  toast(`${classified.length}개 항목 추가 완료`);
+  refreshCounts();
+  showTab('review');
+}
+
+/* ===========================================================
+   Review (Inbox Zero)
+   =========================================================== */
+let currentReviewIdx = 0;
+
+function getPendingItems() {
+  return getItems().filter(x => x.status === 'pending');
+}
+
+function renderReview() {
+  const root = $('review-content');
+  root.textContent = '';
+  const pending = getPendingItems();
+  if (!pending.length) {
+    const empty = document.createElement('div');
+    empty.className = 'review-empty';
+    empty.innerHTML = `<div class="big">🎉</div><div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;">Inbox Zero!</div><div>검토할 항목이 없습니다.</div>`;
+    root.appendChild(empty);
+    return;
+  }
+  if (currentReviewIdx >= pending.length) currentReviewIdx = 0;
+  renderReviewCard(pending[currentReviewIdx], currentReviewIdx, pending.length);
+}
+
+function renderReviewCard(it, idx, total) {
+  const root = $('review-content');
+  root.textContent = '';
+  const stage = document.createElement('div');
+  stage.className = 'review-stage';
+
+  const counter = document.createElement('div');
+  counter.className = 'review-counter';
+  const num = document.createElement('span');
+  num.className = 'num';
+  num.textContent = `${idx + 1} / ${total}`;
+  counter.appendChild(num);
+  counter.appendChild(document.createTextNode(' 검토 중'));
+  stage.appendChild(counter);
+
+  const card = document.createElement('div');
+  card.className = 'review-card';
+  card.id = 'current-card';
+
+  // Top row
+  const top = document.createElement('div');
+  top.className = 'top-row';
+
+  const typeBadge = document.createElement('span');
+  typeBadge.className = 'badge badge-type ' + it.type;
+  typeBadge.textContent = ({ link: '🔗 링크', memo: '📝 메모', photo: '🖼 사진', file: '📎 파일' })[it.type] || it.type;
+  top.appendChild(typeBadge);
+
+  const catBadge = document.createElement('span');
+  catBadge.className = 'badge badge-cat' + (it.confidence < 0.6 ? ' low' : '');
+  catBadge.title = '클릭해서 카테고리 변경';
+  catBadge.textContent = (it.confidence < 0.6 ? '⚠️ ' : '') + (it.category || '미분류');
+  catBadge.onclick = () => openCategoryPicker(it.id);
+
+  const cbar = document.createElement('span');
+  cbar.className = 'confidence-bar' + (it.confidence < 0.6 ? ' low' : (it.confidence < 0.8 ? ' med' : ''));
+  const cbarFill = document.createElement('span');
+  cbarFill.style.width = Math.round((it.confidence || 0) * 100) + '%';
+  cbar.appendChild(cbarFill);
+  catBadge.appendChild(cbar);
+  top.appendChild(catBadge);
+
+  if (it.source) {
+    const src = document.createElement('span');
+    src.className = 'badge';
+    src.style.cssText = 'background:var(--bg);color:var(--muted);font-size:10px;';
+    src.textContent = ({ domain: '도메인', ai: 'AI', keyword: '키워드', manual: '수동', none: '미분류' })[it.source] || it.source;
+    top.appendChild(src);
+  }
+
+  card.appendChild(top);
+
+  // URL bar
+  if (it.url && isSafeUrl(it.url)) {
+    const ub = document.createElement('div');
+    ub.className = 'url-bar';
+    const a = document.createElement('a');
+    a.href = it.url; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = it.domain || it.url;
+    ub.textContent = '🔗 ';
+    ub.appendChild(a);
+    card.appendChild(ub);
+  }
+
+  // Content
+  const content = document.createElement('div');
+  content.className = 'content';
+  content.textContent = it.content || '(내용 없음)';
+  card.appendChild(content);
+
+  // Meta
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const left = document.createElement('span');
+  left.textContent = it.date ? `📅 ${it.date}` : '';
+  const right = document.createElement('span');
+  right.textContent = `ID ${it.id.slice(0, 6)}`;
+  meta.appendChild(left); meta.appendChild(right);
+  card.appendChild(meta);
+
+  stage.appendChild(card);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'review-actions';
+  const discard = document.createElement('button');
+  discard.className = 'big-btn discard';
+  discard.innerHTML = '🗑 삭제<span class="key">←</span>';
+  discard.onclick = () => action(it.id, 'discarded');
+  const keep = document.createElement('button');
+  keep.className = 'big-btn keep';
+  keep.innerHTML = '📚 보관<span class="key">→</span>';
+  keep.onclick = () => action(it.id, 'kept');
+  actions.appendChild(discard);
+  actions.appendChild(keep);
+  stage.appendChild(actions);
+
+  // Shortcuts
+  const sc = document.createElement('div');
+  sc.className = 'review-shortcuts';
+  sc.innerHTML = `<span><span class="kbd">←</span> 삭제</span><span><span class="kbd">→</span> 보관</span><span><span class="kbd">↑</span> 카테고리 수정</span><span><span class="kbd">↓</span> 다음으로 건너뛰기</span>`;
+  stage.appendChild(sc);
+
+  root.appendChild(stage);
+}
+
+function action(id, status) {
+  const card = $('current-card');
+  if (card) card.classList.add(status === 'kept' ? 'swipe-right' : 'swipe-left');
+  setTimeout(() => {
+    updateItem(id, { status, reviewedAt: new Date().toISOString() });
+    refreshCounts();
+    renderReview();
+  }, 200);
+}
+
+function openCategoryPicker(id) {
+  const it = getItems().find(x => x.id === id);
+  if (!it) return;
+  const cats = getCategories();
+  const choice = prompt(`카테고리 선택:\n\n${cats.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n\n숫자 또는 카테고리명 입력:`, it.category);
+  if (!choice) return;
+  let newCat = choice.trim();
+  const n = parseInt(newCat);
+  if (!isNaN(n) && cats[n - 1]) newCat = cats[n - 1];
+  if (!cats.includes(newCat)) {
+    if (!confirm(`"${newCat}" 카테고리를 새로 추가하시겠습니까?`)) return;
+    cats.push(newCat); saveCategories(cats);
+  }
+  updateItem(id, { category: newCat, confidence: 1.0, source: 'manual' });
+  // learn domain
+  if (it.domain) learnDomain(it.domain, newCat);
+  renderReview();
+  toast(`카테고리 → ${newCat}` + (it.domain ? ` (${it.domain} 학습됨)` : ''));
+}
+
+document.addEventListener('keydown', e => {
+  if (!$('panel-review').classList.contains('active')) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  const pending = getPendingItems();
+  if (!pending.length) return;
+  const cur = pending[currentReviewIdx];
+  if (!cur) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); action(cur.id, 'discarded'); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); action(cur.id, 'kept'); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); openCategoryPicker(cur.id); }
+  else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    currentReviewIdx = (currentReviewIdx + 1) % pending.length;
+    renderReview();
+  }
+});
+
+/* ===========================================================
+   Archive
+   =========================================================== */
+let archiveCatFilter = 'all';
+
+function renderArchive() {
+  const items = getItems().filter(x => x.status === 'kept');
+  // category chips
+  const chips = $('cat-chips');
+  chips.textContent = '';
+  const counts = {};
+  for (const it of items) counts[it.category || '미분류'] = (counts[it.category || '미분류'] || 0) + 1;
+  const allChip = document.createElement('button');
+  allChip.className = 'cat-chip' + (archiveCatFilter === 'all' ? ' active' : '');
+  allChip.innerHTML = `전체 <span class="n">${items.length}</span>`;
+  allChip.onclick = () => { archiveCatFilter = 'all'; renderArchive(); };
+  chips.appendChild(allChip);
+  const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  for (const c of cats) {
+    const chip = document.createElement('button');
+    chip.className = 'cat-chip' + (archiveCatFilter === c ? ' active' : '');
+    chip.innerHTML = `${esc(c)} <span class="n">${counts[c]}</span>`;
+    chip.onclick = () => { archiveCatFilter = c; renderArchive(); };
+    chips.appendChild(chip);
+  }
+
+  // grid
+  const q = ($('archive-search').value || '').toLowerCase().trim();
+  const grid = $('archive-grid');
+  grid.textContent = '';
+  let filtered = archiveCatFilter === 'all' ? items : items.filter(x => (x.category || '미분류') === archiveCatFilter);
+  if (q) {
+    filtered = filtered.filter(x =>
+      (x.content || '').toLowerCase().includes(q) ||
+      (x.domain || '').toLowerCase().includes(q) ||
+      (x.category || '').toLowerCase().includes(q)
+    );
+  }
+  if (!filtered.length) {
+    const e = document.createElement('div');
+    e.className = 'archive-empty';
+    e.textContent = items.length ? '검색 결과가 없습니다' : '아직 보관한 항목이 없습니다';
+    grid.appendChild(e);
+    return;
+  }
+  filtered.sort((a, b) => (b.reviewedAt || '').localeCompare(a.reviewedAt || ''));
+  for (const it of filtered) grid.appendChild(makeArchiveItem(it, false));
+}
+
+function makeArchiveItem(it, isTrash) {
+  const div = document.createElement('div');
+  div.className = 'archive-item';
+  div.onclick = () => { if (it.url && isSafeUrl(it.url)) window.open(it.url, '_blank', 'noopener'); };
+
+  const top = document.createElement('div');
+  top.className = 'a-top';
+  const cat = document.createElement('span');
+  cat.className = 'a-cat';
+  cat.textContent = it.category || '미분류';
+  top.appendChild(cat);
+  if (it.domain) {
+    const d = document.createElement('span');
+    d.className = 'a-domain';
+    d.textContent = it.domain;
+    top.appendChild(d);
+  }
+  div.appendChild(top);
+
+  const c = document.createElement('div');
+  c.className = 'a-content';
+  c.textContent = it.content || '(내용 없음)';
+  div.appendChild(c);
+
+  const meta = document.createElement('div');
+  meta.className = 'a-meta';
+  const m1 = document.createElement('span');
+  m1.textContent = it.date || '';
+  const m2 = document.createElement('span');
+  m2.textContent = ({ link: '🔗', memo: '📝', photo: '🖼', file: '📎' })[it.type] || '';
+  meta.appendChild(m1); meta.appendChild(m2);
+  div.appendChild(meta);
+
+  const acts = document.createElement('div');
+  acts.className = 'a-actions';
+  if (isTrash) {
+    const restore = document.createElement('button');
+    restore.title = '복원';
+    restore.textContent = '↩';
+    restore.onclick = (e) => { e.stopPropagation(); updateItem(it.id, { status: 'kept' }); refreshCounts(); renderTrash(); };
+    acts.appendChild(restore);
+    const del = document.createElement('button');
+    del.title = '영구 삭제';
+    del.textContent = '✕';
+    del.onclick = (e) => { e.stopPropagation(); permaDelete(it.id); };
+    acts.appendChild(del);
+  } else {
+    const trash = document.createElement('button');
+    trash.title = '휴지통';
+    trash.textContent = '🗑';
+    trash.onclick = (e) => { e.stopPropagation(); updateItem(it.id, { status: 'discarded' }); refreshCounts(); renderArchive(); };
+    acts.appendChild(trash);
+  }
+  div.appendChild(acts);
+
+  return div;
+}
+
+function esc(s) {
+  // for setting innerHTML via templates that don't include user input (chip count is numeric, but be safe)
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ===========================================================
+   Trash
+   =========================================================== */
+function renderTrash() {
+  const items = getItems().filter(x => x.status === 'discarded');
+  const grid = $('trash-grid');
+  grid.textContent = '';
+  if (!items.length) {
+    const e = document.createElement('div');
+    e.className = 'archive-empty';
+    e.textContent = '휴지통이 비어있습니다';
+    grid.appendChild(e);
+    return;
+  }
+  items.sort((a, b) => (b.reviewedAt || '').localeCompare(a.reviewedAt || ''));
+  for (const it of items) grid.appendChild(makeArchiveItem(it, true));
+}
+
+function permaDelete(id) {
+  if (!confirm('영구 삭제할까요? 복원할 수 없습니다.')) return;
+  const items = getItems().filter(x => x.id !== id);
+  saveItems(items);
+  renderTrash();
+  refreshCounts();
+}
+
+function emptyTrash() {
+  const items = getItems();
+  const remaining = items.filter(x => x.status !== 'discarded');
+  const removed = items.length - remaining.length;
+  if (!removed) return toast('휴지통이 비어있습니다');
+  if (!confirm(`${removed}개 항목을 영구 삭제할까요?`)) return;
+  saveItems(remaining);
+  renderTrash();
+  refreshCounts();
+  toast(`${removed}개 영구 삭제됨`);
+}
+
+/* ===========================================================
+   Excel Export
+   =========================================================== */
+function exportExcel() {
+  const items = getItems().filter(x => x.status === 'kept');
+  if (!items.length) return toast('보관한 항목이 없습니다');
+  const wb = XLSX.utils.book_new();
+
+  // 전체 시트
+  const allRows = items.map(it => ({
+    카테고리: it.category || '미분류',
+    타입: it.type,
+    내용: it.content,
+    URL: it.url,
+    도메인: it.domain,
+    날짜: it.date,
+    검토일: it.reviewedAt ? it.reviewedAt.slice(0, 10) : '',
+    신뢰도: it.confidence,
+    분류출처: it.source,
+  }));
+  const wsAll = XLSX.utils.json_to_sheet(allRows);
+  wsAll['!cols'] = [{wch:10},{wch:6},{wch:60},{wch:30},{wch:20},{wch:12},{wch:12},{wch:8},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsAll, '전체');
+
+  // 카테고리별 시트
+  const byCat = {};
+  for (const it of items) {
+    const c = it.category || '미분류';
+    (byCat[c] = byCat[c] || []).push(it);
+  }
+  for (const [cat, list] of Object.entries(byCat)) {
+    const rows = list.map(it => ({
+      내용: it.content, URL: it.url, 도메인: it.domain, 날짜: it.date, 신뢰도: it.confidence
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:60},{wch:30},{wch:20},{wch:12},{wch:8}];
+    // sheet name max 31 chars, no special chars
+    const name = cat.replace(/[\\/*?[\]:]/g, '_').slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `kakao-organizer_${today}.xlsx`);
+  toast(`${items.length}개 항목 엑셀로 내보냄`);
+}
+
+/* ===========================================================
+   Settings
+   =========================================================== */
+function openSettings() {
+  $('setting-key').value = S.get('gemini_key');
+  $('setting-model').value = S.get('gemini_model') || 'gemini-2.5-flash';
+  renderCatEditList();
+  $('learned-count').textContent = Object.keys(getLearned()).length;
+  $('modal-settings').classList.add('show');
+}
+function closeSettings() { $('modal-settings').classList.remove('show'); }
+
+function renderCatEditList() {
+  const cats = getCategories();
+  const list = $('cat-edit-list');
+  list.textContent = '';
+  cats.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = c;
+    inp.onchange = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      cats[i] = v; saveCategories(cats);
+      // rename in items
+      const items = getItems();
+      for (const it of items) if (it.category === c) it.category = v;
+      saveItems(items);
+      toast(`"${c}" → "${v}"`);
+    };
+    const del = document.createElement('button');
+    del.className = 'btn small danger';
+    del.textContent = '삭제';
+    del.onclick = () => {
+      if (!confirm(`"${c}" 카테고리를 삭제할까요? (해당 항목은 '미분류'로 이동)`)) return;
+      cats.splice(i, 1); saveCategories(cats);
+      const items = getItems();
+      for (const it of items) if (it.category === c) it.category = '미분류';
+      saveItems(items);
+      renderCatEditList();
+    };
+    row.appendChild(inp);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function addCategory() {
+  const v = $('new-cat-input').value.trim();
+  if (!v) return;
+  const cats = getCategories();
+  if (cats.includes(v)) return toast('이미 있는 카테고리');
+  cats.push(v); saveCategories(cats);
+  $('new-cat-input').value = '';
+  renderCatEditList();
+  toast(`"${v}" 추가됨`);
+}
+
+function resetCategories() {
+  if (!confirm('카테고리를 기본값으로 되돌릴까요?')) return;
+  saveCategories([...DEFAULT_CATEGORIES]);
+  renderCatEditList();
+  toast('기본 카테고리로 복원');
+}
+
+function showLearnedMap() {
+  const learned = getLearned();
+  const list = $('learned-list');
+  list.textContent = '';
+  const entries = Object.entries(learned);
+  if (!entries.length) {
+    list.textContent = '아직 학습된 매핑이 없습니다.';
+  } else {
+    entries.sort();
+    for (const [d, c] of entries) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const a = document.createElement('span');
+      a.style.cssText = 'flex:1;font-family:monospace;font-size:12px;';
+      a.textContent = d;
+      const b = document.createElement('span');
+      b.style.cssText = 'flex:1;font-weight:700;';
+      b.textContent = '→ ' + c;
+      const del = document.createElement('button');
+      del.className = 'btn small danger';
+      del.textContent = '✕';
+      del.onclick = () => {
+        const m = getLearned();
+        delete m[d];
+        S.setJSON('domain_learned', m);
+        showLearnedMap();
+      };
+      row.appendChild(a); row.appendChild(b); row.appendChild(del);
+      list.appendChild(row);
+    }
+  }
+  $('modal-learned').classList.add('show');
+}
+
+function clearLearnedMap() {
+  if (!confirm('학습된 매핑을 모두 초기화할까요?')) return;
+  S.del('domain_learned');
+  $('learned-count').textContent = '0';
+  toast('학습 매핑 초기화됨');
+}
+
+function saveSettings() {
+  const k = $('setting-key').value.trim();
+  if (k && !k.startsWith('AIza')) return toast('Gemini 키는 AIza로 시작해야 합니다');
+  if (k) S.set('gemini_key', k);
+  S.set('gemini_model', $('setting-model').value);
+  closeSettings();
+  toast('설정 저장됨');
+}
+
+function clearAllData() {
+  if (!confirm('모든 항목·카테고리·학습 매핑·설정을 삭제할까요?')) return;
+  if (!confirm('정말로요? 복구할 수 없습니다.')) return;
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith(NS)) localStorage.removeItem(k);
+  }
+  closeSettings();
+  refreshCounts();
+  showTab('import');
+  toast('전체 데이터 초기화됨');
+}
+
+/* ===========================================================
+   Counts
+   =========================================================== */
+function refreshCounts() {
+  const items = getItems();
+  $('cnt-pending').textContent = items.filter(x => x.status === 'pending').length;
+  $('cnt-kept').textContent = items.filter(x => x.status === 'kept').length;
+}
+
+/* ===========================================================
+   Init
+   =========================================================== */
+function init() {
+  // tab handlers
+  $$('.tab').forEach(t => {
+    t.onclick = () => showTab(t.dataset.panel);
+  });
+  setupDropzone();
+  refreshCounts();
+  // close modal on bg click
+  $$('.modal-bg').forEach(m => {
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
