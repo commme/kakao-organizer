@@ -1027,7 +1027,9 @@ footer {
     <div class="archive-toolbar">
       <input type="text" class="archive-search" id="archive-search" placeholder="🔍 검색 (내용·도메인·카테고리)" oninput="renderArchive()">
       <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()">☑️ 선택 모드</button>
-      <button class="btn success" onclick="exportExcel()">📊 엑셀 다운로드</button>
+      <button class="btn success" onclick="exportExcel()">📊 엑셀 (전체)</button>
+      <button class="btn small" onclick="downloadPrompts('md')" title="프롬프트/가이드만 Markdown으로">📝 프롬프트 .md</button>
+      <button class="btn small" onclick="downloadPrompts('xlsx')" title="프롬프트/가이드만 엑셀로">📋 프롬프트 .xlsx</button>
       <button class="btn small" onclick="showTab('trash')">🗑 휴지통</button>
     </div>
     <div class="cat-chips" id="cat-chips"></div>
@@ -1400,15 +1402,9 @@ function detectPromptType(text) {
   return null;
 }
 
-// AI/SNS 관련 URL인지 판단 (요약 가치 높은 도메인)
+// 요약 가능한 URL인지 판단 (안전한 http/https URL이면 모두 OK)
 function isSummarizable(item) {
-  if (!item.url || !item.domain) return false;
-  const d = item.domain;
-  const cat = item.category;
-  if (cat === 'AI' || cat === 'SNS' || cat === '블로그' || cat === '뉴스' || cat === '개발') return true;
-  // YouTube, 노션 공유 등은 카테고리 무관 의미
-  if (/(youtube\.com|youtu\.be|notion\.site|github\.com|medium\.com|substack\.com)/.test(d)) return true;
-  return false;
+  return !!(item.url && isSafeUrl(item.url));
 }
 
 /* ===========================================================
@@ -2319,7 +2315,7 @@ function renderArchive() {
     const b = document.createElement('button');
     b.className = 'view-chip' + (archiveViewFilter === v ? ' active' : '');
     b.innerHTML = `${label} <span class="n">${n}</span>`;
-    b.onclick = () => { archiveViewFilter = v; renderArchive(); };
+    b.onclick = () => { archiveViewFilter = v; archiveCatFilter = 'all'; renderArchive(); };
     viewRow.appendChild(b);
   }
   chips.appendChild(viewRow);
@@ -2572,7 +2568,9 @@ function exportExcel() {
   const allRows = items.map(it => ({
     카테고리: it.category || '미분류',
     타입: it.type,
+    프롬프트유형: ({'prompt-image':'이미지','prompt-video':'영상','prompt-code':'시스템','guide':'가이드'})[it.promptType] || '',
     내용: it.content,
+    AI요약: it.summary || '',
     URL: it.url,
     도메인: it.domain,
     날짜: it.date,
@@ -2581,7 +2579,7 @@ function exportExcel() {
     분류출처: it.source,
   }));
   const wsAll = XLSX.utils.json_to_sheet(allRows);
-  wsAll['!cols'] = [{wch:10},{wch:6},{wch:60},{wch:30},{wch:20},{wch:12},{wch:12},{wch:8},{wch:10}];
+  wsAll['!cols'] = [{wch:10},{wch:6},{wch:10},{wch:60},{wch:60},{wch:30},{wch:20},{wch:12},{wch:12},{wch:8},{wch:10}];
   XLSX.utils.book_append_sheet(wb, wsAll, '전체');
 
   // 카테고리별 시트
@@ -2604,6 +2602,93 @@ function exportExcel() {
   const today = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `kakao-organizer_${today}.xlsx`);
   toast(`${items.length}개 항목 엑셀로 내보냄`);
+}
+
+/* ===========================================================
+   Prompt/Guide Export (Markdown)
+   =========================================================== */
+function downloadPrompts(format) {
+  const items = getItems().filter(x => x.status === 'kept' && x.promptType);
+  if (!items.length) { toast('프롬프트/가이드 항목이 없습니다'); return; }
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 현재 view 필터가 프롬프트 타입이면 그것만, 아니면 전체
+  const currentType = ['prompt-image','prompt-video','prompt-code','guide'].includes(archiveViewFilter) ? archiveViewFilter : null;
+  const targets = currentType ? items.filter(x => x.promptType === currentType) : items;
+  if (!targets.length) { toast('현재 필터에 해당 항목 없음'); return; }
+
+  if (format === 'md') {
+    const TYPES = {
+      'prompt-image': '🎨 이미지 프롬프트',
+      'prompt-video': '🎬 영상 프롬프트',
+      'prompt-code':  '💻 시스템 프롬프트',
+      'guide':        '📋 가이드'
+    };
+    const grouped = {};
+    for (const it of targets) {
+      const t = it.promptType;
+      (grouped[t] = grouped[t] || []).push(it);
+    }
+    let md = `# 카톡 정리기 — 프롬프트/가이드 모음\n\n`;
+    md += `> 추출일: ${today}  |  총 ${targets.length}개\n\n---\n\n`;
+    const order = ['prompt-image','prompt-video','prompt-code','guide'];
+    for (const t of order) {
+      if (!grouped[t]) continue;
+      md += `## ${TYPES[t]} (${grouped[t].length})\n\n`;
+      grouped[t].forEach((it, i) => {
+        md += `### ${i + 1}. ${(it.content || '').split('\n')[0].slice(0, 60)}${(it.content || '').length > 60 ? '...' : ''}\n\n`;
+        if (it.date) md += `- **날짜**: ${it.date}\n`;
+        if (it.category) md += `- **카테고리**: ${it.category}\n`;
+        if (it.url) md += `- **URL**: ${it.url}\n`;
+        if (it.summary) md += `- **AI 요약**: ${it.summary}\n`;
+        md += `\n\`\`\`\n${it.content}\n\`\`\`\n\n---\n\n`;
+      });
+    }
+    const filename = currentType
+      ? `kakao_${currentType}_${today}.md`
+      : `kakao_prompts_${today}.md`;
+    downloadText(md, filename, 'text/markdown');
+    toast(`${targets.length}개 → ${filename}`);
+  } else if (format === 'xlsx') {
+    if (typeof XLSX === 'undefined') { toast('SheetJS 미로딩'); return; }
+    const TYPES = {
+      'prompt-image': '이미지 프롬프트',
+      'prompt-video': '영상 프롬프트',
+      'prompt-code':  '시스템 프롬프트',
+      'guide':        '가이드'
+    };
+    const wb = XLSX.utils.book_new();
+    const grouped = {};
+    for (const it of targets) {
+      const t = it.promptType;
+      (grouped[t] = grouped[t] || []).push(it);
+    }
+    for (const [t, list] of Object.entries(grouped)) {
+      const rows = list.map(it => ({
+        제목: (it.content || '').split('\n')[0].slice(0, 60),
+        전체내용: it.content,
+        날짜: it.date,
+        카테고리: it.category,
+        URL: it.url,
+        AI요약: it.summary || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{wch:40},{wch:80},{wch:12},{wch:12},{wch:30},{wch:50}];
+      XLSX.utils.book_append_sheet(wb, ws, TYPES[t].slice(0, 31));
+    }
+    const filename = currentType ? `kakao_${currentType}_${today}.xlsx` : `kakao_prompts_${today}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast(`${targets.length}개 → ${filename}`);
+  }
+}
+
+function downloadText(text, filename, mime) {
+  const blob = new Blob([text], { type: mime + ';charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 /* ===========================================================
