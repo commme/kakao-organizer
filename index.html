@@ -1026,8 +1026,9 @@ footer {
   <div class="card">
     <div class="archive-toolbar">
       <input type="text" class="archive-search" id="archive-search" placeholder="🔍 검색 (내용·도메인·카테고리)" oninput="renderArchive()">
-      <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()">☑️ 선택 모드</button>
-      <button class="btn success" onclick="exportExcel()">📊 엑셀 (전체)</button>
+      <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()">☑️ 선택</button>
+      <button class="btn primary" onclick="summarizeAllAndExport()" title="현재 보이는 URL을 모두 AI 요약하고 자동으로 엑셀 다운로드">⚡ 전체 AI 요약 → 엑셀</button>
+      <button class="btn success" onclick="exportExcel()">📊 엑셀</button>
       <button class="btn small" onclick="downloadPrompts('md')" title="프롬프트/가이드만 Markdown으로">📝 프롬프트 .md</button>
       <button class="btn small" onclick="downloadPrompts('xlsx')" title="프롬프트/가이드만 엑셀로">📋 프롬프트 .xlsx</button>
       <button class="btn small" onclick="showTab('trash')">🗑 휴지통</button>
@@ -1526,18 +1527,75 @@ async function summarizeBulk() {
   const items = getItems();
   const targets = items.filter(x => archiveSelected.has(x.id) && x.url && isSafeUrl(x.url) && !x.summary);
   if (!targets.length) { toast('요약 대상 없음 (URL 없거나 이미 요약됨)'); return; }
-  if (!confirm(`${targets.length}개 URL을 AI로 요약합니다.\nGemini API 호출 (~${Math.ceil(targets.length * 0.5)}원).\n진행할까요?`)) return;
-  let done = 0;
+  if (!confirm(`${targets.length}개 URL을 AI로 요약합니다.\nGemini API 호출 (~${Math.ceil(targets.length * 0.7)}원).\n진행할까요?`)) return;
+  await runSummarize(targets);
+  archiveSelected.clear();
+  renderArchive();
+}
+
+// 한 번에 전체 URL 요약 → 자동 엑셀 다운로드 (사용자 핵심 워크플로우)
+async function summarizeAllAndExport() {
+  const key = S.get('gemini_key');
+  if (!key) {
+    if (confirm('Gemini API 키가 필요합니다. 설정 화면을 열까요?')) openSettings();
+    return;
+  }
+  const items = getItems().filter(x => x.status === 'kept');
+  // 현재 view 필터에 맞춰 대상 결정
+  let scope = items;
+  let scopeLabel = '전체 보관함';
+  if (archiveViewFilter === 'summarizable') {
+    scope = items.filter(x => isSummarizable(x) && !x.summary);
+    scopeLabel = '요약 가능 URL';
+  } else if (archiveViewFilter !== 'all' && archiveViewFilter !== 'summarized') {
+    scope = items.filter(x => x.promptType === archiveViewFilter);
+    scopeLabel = '현재 필터';
+  }
+  const targets = scope.filter(x => x.url && isSafeUrl(x.url) && !x.summary);
+  const alreadyDone = scope.filter(x => x.summary).length;
+
+  if (!targets.length) {
+    if (alreadyDone) {
+      // 이미 다 요약됨 → 바로 엑셀
+      if (confirm(`${scopeLabel}의 URL은 모두 요약 완료 상태입니다 (${alreadyDone}개).\n바로 엑셀로 내보낼까요?`)) {
+        exportExcel();
+      }
+    } else {
+      toast('요약할 URL이 없습니다');
+    }
+    return;
+  }
+
+  const cost = Math.ceil(targets.length * 0.7);
+  const eta = Math.ceil(targets.length * 2.5 / 60);
+  if (!confirm(
+    `🤖 일괄 요약 + 엑셀 추출\n\n` +
+    `대상: ${scopeLabel}\n` +
+    `요약할 URL: ${targets.length}개${alreadyDone ? ` (이미 ${alreadyDone}개 완료, 스킵)` : ''}\n` +
+    `예상 비용: 약 ${cost}원 (Gemini 2.5 Flash)\n` +
+    `예상 시간: 약 ${eta}분\n\n` +
+    `완료 후 자동으로 엑셀이 다운로드됩니다.\n진행할까요?`
+  )) return;
+
+  await runSummarize(targets);
+  renderArchive();
+  // 완료 후 자동 엑셀 다운로드
+  toast('✅ 요약 완료 → 엑셀 생성 중...');
+  setTimeout(() => exportExcel(), 600);
+}
+
+// 공통 요약 실행 (배열 받아 순차 처리, 진행률 표시)
+async function runSummarize(targets) {
+  let done = 0, ok = 0, fail = 0;
   for (const it of targets) {
-    setProgress((done / targets.length) * 100, `요약 중... ${done}/${targets.length}`);
+    setProgress((done / targets.length) * 100, `🤖 요약 중... ${done + 1}/${targets.length}`);
     const s = await summarizeOne(it);
-    if (s) updateItem(it.id, { summary: s });
+    if (s) { updateItem(it.id, { summary: s }); ok++; }
+    else fail++;
     done++;
   }
   setProgress(0, '');
-  toast(`${done}개 요약 완료`);
-  archiveSelected.clear();
-  renderArchive();
+  toast(`✅ 요약 완료 — 성공 ${ok}개${fail ? ` / 실패 ${fail}개` : ''}`);
 }
 
 async function runClassification(items) {
