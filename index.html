@@ -711,9 +711,70 @@ label {
 }
 .cat-chips {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.view-row, .cat-row {
+  display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+}
+.view-row { padding-bottom: 8px; border-bottom: 1px dashed var(--border); }
+.view-chip {
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.view-chip:hover { border-color: var(--accent-2); }
+.view-chip.active {
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+}
+.view-chip .n {
+  display: inline-block;
+  margin-left: 4px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+.a-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: 4px;
+  letter-spacing: 0.2px;
+}
+.a-badge-prompt-image { background: rgba(236, 72, 153, 0.15); color: #f0abfc; }
+.a-badge-prompt-video { background: rgba(168, 85, 247, 0.15); color: #c4b5fd; }
+.a-badge-prompt-code  { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+.a-badge-guide        { background: rgba(251, 191, 36, 0.15); color: #fcd34d; }
+.a-summary {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(236, 72, 153, 0.08));
+  border-left: 3px solid #a855f7;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.a-summary-label {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #a855f7;
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
 }
 .cat-chip {
   padding: 5px 12px;
@@ -887,7 +948,6 @@ footer {
   <div class="brand">🗂 카톡 정리기 v2</div>
   <div class="tabs">
     <button class="tab active" data-panel="import">📥 입력</button>
-    <button class="tab" data-panel="review">🃏 검토 <span class="count" id="cnt-pending">0</span></button>
     <button class="tab" data-panel="archive">📚 보관함 <span class="count" id="cnt-kept">0</span></button>
   </div>
   <button class="icon-btn" title="설정" onclick="openSettings()">⚙️</button>
@@ -940,6 +1000,7 @@ footer {
           <span style="color: var(--muted);">~</span>
           <input type="date" id="date-to" style="flex: 1;">
         </div>
+        <div id="date-hint" style="font-size: 11px; color: var(--muted); margin-top: 6px;"></div>
       </div>
       <div style="flex: 1; min-width: 200px;">
         <label>분류 방식</label>
@@ -949,15 +1010,8 @@ footer {
         </select>
       </div>
     </div>
-    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border);">
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; margin: 0;">
-        <input type="checkbox" id="auto-keep" checked style="width:16px;height:16px;accent-color:#a855f7;cursor:pointer;">
-        <span>📚 분류 후 바로 보관함으로 (검토 단계 건너뛰기)</span>
-      </label>
-      <div style="font-size: 11px; color: var(--muted); margin-top: 6px; padding-left: 26px;">
-        체크하면 모든 항목이 자동 보관 → 보관함에서 카테고리별로 한꺼번에 정리·삭제할 수 있습니다.<br>
-        체크 해제하면 검토 모드(하나씩 또는 일괄)로 먼저 거치게 됩니다.
-      </div>
+    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); font-size: 12px; color: var(--muted);">
+      💡 분석 후 모든 항목이 <b>보관함</b>으로 들어갑니다. 거기서 AI 요약·프롬프트 추출·일괄 정리할 수 있어요.
     </div>
     <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
       <button class="btn primary" id="btn-analyze" onclick="startAnalysis()" disabled>⚡ 분석 시작</button>
@@ -965,11 +1019,6 @@ footer {
     </div>
     <div class="progress" id="progress-bar" style="display: none;"><div></div></div>
   </div>
-</div>
-
-<!-- 검토 패널 (Inbox Zero) -->
-<div class="panel" id="panel-review">
-  <div id="review-content"></div>
 </div>
 
 <!-- 보관함 패널 -->
@@ -1315,7 +1364,51 @@ function makeItemFromText(text, date) {
     type, content: text, url, domain, date,
     category: '', confidence: 0, source: '',
     status: 'pending', reviewedAt: null,
+    promptType: detectPromptType(text), // 'prompt-image' | 'prompt-video' | 'prompt-code' | 'guide' | null
+    summary: '', // AI 요약 결과 (수동 트리거)
   };
+}
+
+// 프롬프트/가이드 자동 감지 (regex 기반, 무료, 분류 시점 자동)
+function detectPromptType(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  // 1. 이미지 생성 프롬프트
+  if (/midjourney|stable diffusion|dall-?e|flux|imagen|sdxl|nano banana|leonardo|ideogram|civitai|\/imagine|--ar |--v \d|--style|aspect ratio/i.test(t)
+      || (/cinematic|photorealistic|hyperrealistic|octane render|unreal engine|3d render|illustration|anime style|oil painting|watercolor/i.test(t)
+          && text.length > 80)) {
+    return 'prompt-image';
+  }
+  // 2. 영상 생성 프롬프트
+  if (/sora|veo ?[23]|runway|kling|pika|haiper|luma|gen-?[23]|hailuo|minimax|hunyuan|wan ?2/i.test(t)
+      || (/(camera (pan|zoom|dolly|tracking|orbit)|wide shot|close-?up|aerial|fps|tracking shot|depth of field)/i.test(t)
+          && text.length > 80)) {
+    return 'prompt-video';
+  }
+  // 3. 시스템/역할 프롬프트
+  if ((/system prompt|you are an? \w+ (expert|assistant|engineer|specialist)|당신은 .{0,20}(전문가|어시스턴트|입니다)|역할\s*[:：]|role\s*[:：]/i.test(t)
+       || /<\/?(role|system|instruction|context|task)>/i.test(t))
+      && text.length > 100) {
+    return 'prompt-code';
+  }
+  // 4. 가이드 (구조화된 긴 텍스트)
+  if (text.length > 300
+      && (/##\s|^\d+\.\s|단계\s?\d|step\s?\d|tip\s?\d|chapter\s?\d/im.test(text)
+          || (text.match(/\n/g) || []).length > 5)) {
+    return 'guide';
+  }
+  return null;
+}
+
+// AI/SNS 관련 URL인지 판단 (요약 가치 높은 도메인)
+function isSummarizable(item) {
+  if (!item.url || !item.domain) return false;
+  const d = item.domain;
+  const cat = item.category;
+  if (cat === 'AI' || cat === 'SNS' || cat === '블로그' || cat === '뉴스' || cat === '개발') return true;
+  // YouTube, 노션 공유 등은 카테고리 무관 의미
+  if (/(youtube\.com|youtu\.be|notion\.site|github\.com|medium\.com|substack\.com)/.test(d)) return true;
+  return false;
 }
 
 /* ===========================================================
@@ -1382,6 +1475,73 @@ ${items.map((it, i) => `${i}. ${(it.content || '').slice(0, 200).replace(/\n/g, 
     toast('AI 분류 실패: ' + e.message);
     return items.map(it => ({ id: it.id, category: '미분류', confidence: 0.1, source: 'none' }));
   }
+}
+
+/* ===========================================================
+   URL Summarizer (Gemini urlContext)
+   =========================================================== */
+async function summarizeOne(item) {
+  const key = S.get('gemini_key');
+  if (!key) { toast('Gemini API 키 필요 (설정에서 입력)'); return null; }
+  if (!item.url || !isSafeUrl(item.url)) { toast('요약 가능한 URL이 없음'); return null; }
+  const model = S.get('gemini_model') || 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const prompt = `다음 URL의 페이지를 한국어로 3~4줄 요약해 주세요. 핵심 정보·결론·실용적 시사점 위주.\n순수 텍스트만 출력 (마크다운/번호 금지).\n\nURL: ${item.url}`;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ urlContext: {} }],
+        generationConfig: { temperature: 0.3 }
+      })
+    });
+    if (!r.ok) {
+      const errText = await r.text();
+      throw new Error(`HTTP ${r.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await r.json();
+    const summary = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    if (!summary) throw new Error('빈 응답');
+    return summary;
+  } catch (e) {
+    console.error('summarize failed:', e);
+    toast('요약 실패: ' + e.message);
+    return null;
+  }
+}
+
+async function summarizeItem(id) {
+  const items = getItems();
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  toast('🤖 요약 중...');
+  const s = await summarizeOne(it);
+  if (s) {
+    updateItem(id, { summary: s });
+    toast('요약 완료');
+    renderArchive();
+  }
+}
+
+async function summarizeBulk() {
+  if (!archiveSelected.size) { toast('항목을 선택하세요'); return; }
+  const items = getItems();
+  const targets = items.filter(x => archiveSelected.has(x.id) && x.url && isSafeUrl(x.url) && !x.summary);
+  if (!targets.length) { toast('요약 대상 없음 (URL 없거나 이미 요약됨)'); return; }
+  if (!confirm(`${targets.length}개 URL을 AI로 요약합니다.\nGemini API 호출 (~${Math.ceil(targets.length * 0.5)}원).\n진행할까요?`)) return;
+  let done = 0;
+  for (const it of targets) {
+    setProgress((done / targets.length) * 100, `요약 중... ${done}/${targets.length}`);
+    const s = await summarizeOne(it);
+    if (s) updateItem(it.id, { summary: s });
+    done++;
+  }
+  setProgress(0, '');
+  toast(`${done}개 요약 완료`);
+  archiveSelected.clear();
+  renderArchive();
 }
 
 async function runClassification(items) {
@@ -1509,14 +1669,11 @@ async function startAnalysis() {
   setProgress(30, `중복 제거 후 ${allItems.length}개 분류 시작...`);
 
   const classified = await runClassification(allItems);
-  // Auto-keep: send straight to archive (skip review)
-  const autoKeep = $('auto-keep') && $('auto-keep').checked;
-  if (autoKeep) {
-    const now = new Date().toISOString();
-    for (const it of classified) {
-      it.status = 'kept';
-      it.reviewedAt = now;
-    }
+  // Always auto-keep: 보관함에서 AI 요약·일괄 정리 처리
+  const now = new Date().toISOString();
+  for (const it of classified) {
+    it.status = 'kept';
+    it.reviewedAt = now;
   }
   // merge with existing pending items (don't lose previous work)
   const existing = getItems();
@@ -1525,11 +1682,38 @@ async function startAnalysis() {
     if (!existingIds.has(it.id)) existing.push(it);
   }
   saveItems(existing);
+  // remember the latest date in this import → next time prefill date-from = max+1day
+  let maxDate = '';
+  for (const it of classified) {
+    const d = (it.date || '').slice(0, 10);
+    if (d && d > maxDate) maxDate = d;
+  }
+  if (maxDate) S.set('last_import_max_date', maxDate);
   setProgress(0, '');
   $('btn-analyze').disabled = false;
-  toast(`${classified.length}개 항목 ${autoKeep ? '자동 보관' : '추가'} 완료`);
+  toast(`${classified.length}개 항목 보관 완료`);
   refreshCounts();
-  showTab(autoKeep ? 'archive' : 'review');
+  prefillDateFrom();
+  showTab('archive');
+}
+
+function prefillDateFrom() {
+  const last = S.get('last_import_max_date');
+  const fromEl = $('date-from');
+  const hint = $('date-hint');
+  if (!fromEl) return;
+  if (last && !fromEl.value) {
+    // last + 1 day
+    const d = new Date(last + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    const next = d.toISOString().slice(0, 10);
+    fromEl.value = next;
+    if (hint) hint.textContent = `💡 마지막 import: ${last} → 자동으로 ${next}부터 설정 (수정 가능 / 비우면 전체)`;
+  } else if (hint) {
+    hint.textContent = last
+      ? `💡 마지막 import: ${last}`
+      : '💡 처음 import면 비워두세요 (전체 분석)';
+  }
 }
 
 /* ===========================================================
@@ -1553,6 +1737,7 @@ function setReviewMode(mode) {
 
 function renderReview() {
   const root = $('review-content');
+  if (!root) return; // 검토 탭 제거됨 (auto-keep 기본화)
   root.textContent = '';
   const pending = getPendingItems();
 
@@ -1988,6 +2173,7 @@ document.addEventListener('keydown', e => {
    Archive
    =========================================================== */
 let archiveCatFilter = 'all';
+let archiveViewFilter = 'all'; // 'all' | 'prompt-image' | 'prompt-video' | 'prompt-code' | 'guide' | 'summarizable' | 'summarized'
 let archiveSelectMode = false;
 let archiveSelected = new Set();
 
@@ -2037,6 +2223,12 @@ function renderArchiveBulkBar(filtered) {
   catBtn.disabled = archiveSelected.size === 0;
   catBtn.onclick = () => bulkChangeCategory();
   bar.appendChild(catBtn);
+
+  const sumBtn = document.createElement('button');
+  sumBtn.textContent = `🤖 AI 요약 (${archiveSelected.size})`;
+  sumBtn.disabled = archiveSelected.size === 0;
+  sumBtn.onclick = () => summarizeBulk();
+  bar.appendChild(sumBtn);
 
   const sp = document.createElement('div');
   sp.className = 'spacer';
@@ -2099,30 +2291,74 @@ function bulkChangeCategory() {
 
 function renderArchive() {
   const items = getItems().filter(x => x.status === 'kept');
-  // category chips
+
+  // ── View filters (프롬프트/요약): 카테고리 위에 표시
   const chips = $('cat-chips');
   chips.textContent = '';
+  const viewCounts = {
+    'prompt-image': items.filter(x => x.promptType === 'prompt-image').length,
+    'prompt-video': items.filter(x => x.promptType === 'prompt-video').length,
+    'prompt-code':  items.filter(x => x.promptType === 'prompt-code').length,
+    'guide':        items.filter(x => x.promptType === 'guide').length,
+    'summarizable': items.filter(x => isSummarizable(x) && !x.summary).length,
+    'summarized':   items.filter(x => x.summary).length,
+  };
+  const viewDefs = [
+    ['all',          '📁 전체',         items.length],
+    ['prompt-image', '🎨 이미지 프롬프트', viewCounts['prompt-image']],
+    ['prompt-video', '🎬 영상 프롬프트',   viewCounts['prompt-video']],
+    ['prompt-code',  '💻 시스템 프롬프트', viewCounts['prompt-code']],
+    ['guide',        '📋 가이드',         viewCounts['guide']],
+    ['summarizable', '🤖 요약 가능 URL',  viewCounts['summarizable']],
+    ['summarized',   '✅ 요약 완료',      viewCounts['summarized']],
+  ];
+  const viewRow = document.createElement('div');
+  viewRow.className = 'view-row';
+  for (const [v, label, n] of viewDefs) {
+    if (v !== 'all' && n === 0) continue; // 0개면 표시 안 함 (전체는 항상)
+    const b = document.createElement('button');
+    b.className = 'view-chip' + (archiveViewFilter === v ? ' active' : '');
+    b.innerHTML = `${label} <span class="n">${n}</span>`;
+    b.onclick = () => { archiveViewFilter = v; renderArchive(); };
+    viewRow.appendChild(b);
+  }
+  chips.appendChild(viewRow);
+
+  // ── 1차 필터: view filter 적용
+  let viewItems = items;
+  if (archiveViewFilter === 'summarizable') {
+    viewItems = items.filter(x => isSummarizable(x) && !x.summary);
+  } else if (archiveViewFilter === 'summarized') {
+    viewItems = items.filter(x => x.summary);
+  } else if (archiveViewFilter !== 'all') {
+    viewItems = items.filter(x => x.promptType === archiveViewFilter);
+  }
+
+  // ── 2차 필터: category chips
   const counts = {};
-  for (const it of items) counts[it.category || '미분류'] = (counts[it.category || '미분류'] || 0) + 1;
+  for (const it of viewItems) counts[it.category || '미분류'] = (counts[it.category || '미분류'] || 0) + 1;
+  const catRow = document.createElement('div');
+  catRow.className = 'cat-row';
   const allChip = document.createElement('button');
   allChip.className = 'cat-chip' + (archiveCatFilter === 'all' ? ' active' : '');
-  allChip.innerHTML = `전체 <span class="n">${items.length}</span>`;
+  allChip.innerHTML = `전체 <span class="n">${viewItems.length}</span>`;
   allChip.onclick = () => { archiveCatFilter = 'all'; renderArchive(); };
-  chips.appendChild(allChip);
+  catRow.appendChild(allChip);
   const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   for (const c of cats) {
     const chip = document.createElement('button');
     chip.className = 'cat-chip' + (archiveCatFilter === c ? ' active' : '');
     chip.innerHTML = `${esc(c)} <span class="n">${counts[c]}</span>`;
     chip.onclick = () => { archiveCatFilter = c; renderArchive(); };
-    chips.appendChild(chip);
+    catRow.appendChild(chip);
   }
+  chips.appendChild(catRow);
 
   // grid
   const q = ($('archive-search').value || '').toLowerCase().trim();
   const grid = $('archive-grid');
   grid.textContent = '';
-  let filtered = archiveCatFilter === 'all' ? items : items.filter(x => (x.category || '미분류') === archiveCatFilter);
+  let filtered = archiveCatFilter === 'all' ? viewItems : viewItems.filter(x => (x.category || '미분류') === archiveCatFilter);
   if (q) {
     filtered = filtered.filter(x =>
       (x.content || '').toLowerCase().includes(q) ||
@@ -2178,6 +2414,7 @@ function makeArchiveItem(it, isTrash) {
           b.disabled = archiveSelected.size === 0;
           if (b.textContent.includes('휴지통으로')) b.textContent = `🗑 휴지통으로 (${archiveSelected.size})`;
           if (b.textContent.includes('카테고리 변경')) b.textContent = `📂 카테고리 변경 (${archiveSelected.size})`;
+          if (b.textContent.includes('AI 요약')) b.textContent = `🤖 AI 요약 (${archiveSelected.size})`;
         });
       }
     };
@@ -2188,6 +2425,18 @@ function makeArchiveItem(it, isTrash) {
   cat.className = 'a-cat';
   cat.textContent = it.category || '미분류';
   top.appendChild(cat);
+  // 프롬프트/가이드 뱃지
+  if (it.promptType) {
+    const badge = document.createElement('span');
+    badge.className = 'a-badge a-badge-' + it.promptType;
+    badge.textContent = ({
+      'prompt-image': '🎨 이미지',
+      'prompt-video': '🎬 영상',
+      'prompt-code': '💻 시스템',
+      'guide': '📋 가이드'
+    })[it.promptType] || '';
+    top.appendChild(badge);
+  }
   if (it.domain) {
     const d = document.createElement('span');
     d.className = 'a-domain';
@@ -2200,6 +2449,19 @@ function makeArchiveItem(it, isTrash) {
   c.className = 'a-content';
   c.textContent = it.content || '(내용 없음)';
   div.appendChild(c);
+
+  // AI 요약 표시
+  if (it.summary) {
+    const sum = document.createElement('div');
+    sum.className = 'a-summary';
+    const lab = document.createElement('span');
+    lab.className = 'a-summary-label';
+    lab.textContent = '🤖 AI 요약';
+    const txt = document.createElement('div');
+    txt.textContent = it.summary;
+    sum.appendChild(lab); sum.appendChild(txt);
+    div.appendChild(sum);
+  }
 
   const meta = document.createElement('div');
   meta.className = 'a-meta';
@@ -2224,6 +2486,26 @@ function makeArchiveItem(it, isTrash) {
     del.onclick = (e) => { e.stopPropagation(); permaDelete(it.id); };
     acts.appendChild(del);
   } else {
+    // 프롬프트/가이드 → 복사 버튼
+    if (it.promptType) {
+      const copyBtn = document.createElement('button');
+      copyBtn.title = '내용 복사';
+      copyBtn.textContent = '📋';
+      copyBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try { await navigator.clipboard.writeText(it.content || ''); toast('복사됨'); }
+        catch { toast('복사 실패'); }
+      };
+      acts.appendChild(copyBtn);
+    }
+    // URL 항목 → AI 요약 버튼 (이미 요약된 건 다시 요약 가능)
+    if (it.url && isSafeUrl(it.url)) {
+      const sumBtn = document.createElement('button');
+      sumBtn.title = it.summary ? 'AI 다시 요약' : 'AI로 요약';
+      sumBtn.textContent = it.summary ? '🔄' : '🤖';
+      sumBtn.onclick = (e) => { e.stopPropagation(); summarizeItem(it.id); };
+      acts.appendChild(sumBtn);
+    }
     const trash = document.createElement('button');
     trash.title = '휴지통';
     trash.textContent = '🗑';
@@ -2511,8 +2793,10 @@ function refreshSettingsStatus() {
    =========================================================== */
 function refreshCounts() {
   const items = getItems();
-  $('cnt-pending').textContent = items.filter(x => x.status === 'pending').length;
-  $('cnt-kept').textContent = items.filter(x => x.status === 'kept').length;
+  const pendEl = $('cnt-pending'); // 검토 탭 제거됨, 있을 수도 없을 수도
+  if (pendEl) pendEl.textContent = items.filter(x => x.status === 'pending').length;
+  const keptEl = $('cnt-kept');
+  if (keptEl) keptEl.textContent = items.filter(x => x.status === 'kept').length;
   refreshSetupBanner();
   refreshSettingsStatus();
 }
@@ -2521,12 +2805,27 @@ function refreshCounts() {
    Init
    =========================================================== */
 function init() {
+  // 기존 항목에 promptType이 없으면 일괄 백필 (한 번만 실행)
+  if (!S.get('prompt_backfilled_v1')) {
+    const items = getItems();
+    let changed = 0;
+    for (const it of items) {
+      if (it.promptType === undefined) {
+        it.promptType = detectPromptType(it.content || '');
+        if (!('summary' in it)) it.summary = '';
+        changed++;
+      }
+    }
+    if (changed) saveItems(items);
+    S.set('prompt_backfilled_v1', '1');
+  }
   // tab handlers
   $$('.tab').forEach(t => {
     t.onclick = () => showTab(t.dataset.panel);
   });
   setupDropzone();
   refreshCounts();
+  prefillDateFrom();
   // close modal on bg click
   $$('.modal-bg').forEach(m => {
     m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); });
