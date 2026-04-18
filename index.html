@@ -234,6 +234,60 @@ label {
   transition: width 0.3s;
 }
 
+/* Setup Banner */
+.setup-banner {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(236, 72, 153, 0.12));
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  position: relative;
+}
+.setup-banner .sb-icon { font-size: 28px; line-height: 1; }
+.setup-banner .sb-body { flex: 1; }
+.setup-banner .sb-title { font-size: 15px; font-weight: 800; margin-bottom: 6px; color: var(--text); }
+.setup-banner .sb-desc { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
+.setup-banner .sb-desc b { color: var(--text); font-weight: 700; }
+.setup-banner .sb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.setup-banner .sb-actions a { text-decoration: none; }
+.setup-banner .sb-close {
+  position: absolute; top: 10px; right: 12px;
+  background: transparent; border: none; color: var(--muted);
+  font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 8px;
+}
+.setup-banner .sb-close:hover { color: var(--text); }
+.btn.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+.btn.ghost:hover { color: var(--text); border-color: var(--accent-1); }
+
+/* Settings status row */
+.settings-status {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+.settings-status .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-status .pill:hover { border-color: var(--accent-1); color: var(--text); }
+.settings-status .pill.ok { color: var(--success); border-color: rgba(16, 185, 129, 0.3); }
+.settings-status .pill.warn { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); }
+.settings-status .pill b { font-weight: 800; }
+
 /* Review (Inbox Zero) */
 .review-stage {
   min-height: 60vh;
@@ -838,6 +892,27 @@ footer {
 
 <!-- 입력 패널 -->
 <div class="panel active" id="panel-import">
+  <!-- First-run / settings status banner -->
+  <div id="setup-banner" class="setup-banner" style="display:none;">
+    <div class="sb-icon">👋</div>
+    <div class="sb-body">
+      <div class="sb-title">처음 사용하시나요?</div>
+      <div class="sb-desc">
+        이 도구는 <b>여러분의 개인 설정</b>으로 동작합니다 — 카테고리와 AI 키 모두 사용자 설정.<br>
+        AI 분류를 쓰려면 <b>무료 Gemini API 키</b> (1분 발급)가 필요합니다. 키 없이도 도메인 매핑만으로 80% 분류됩니다.
+      </div>
+      <div class="sb-actions">
+        <button class="btn primary small" onclick="openSettings()">⚙️ 설정 열기</button>
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="btn small">🔑 Gemini 키 발급</a>
+        <button class="btn small ghost" onclick="dismissSetupBanner()">나중에</button>
+      </div>
+    </div>
+    <button class="sb-close" onclick="dismissSetupBanner()" title="닫기">×</button>
+  </div>
+
+  <!-- Settings status row -->
+  <div id="settings-status" class="settings-status"></div>
+
   <div class="card">
     <h2>📥 카톡 데이터 가져오기</h2>
     <p class="desc">카카오톡 PC > 채팅방 > 더보기 > 대화 내용 내보내기로 받은 .txt 또는 .csv 파일을 끌어다 놓으세요.</p>
@@ -1380,6 +1455,18 @@ function setProgress(pct, label) {
 
 async function startAnalysis() {
   if (!pendingFiles.length) return;
+  // Pre-flight: AI mode but no key → ask user
+  const mode = $('classify-mode').value;
+  const hasKey = !!S.get('gemini_key');
+  if (mode === 'ai' && !hasKey) {
+    const choice = confirm(
+      'AI 분류 모드인데 Gemini API 키가 설정되지 않았습니다.\n\n' +
+      '확인: 설정 화면을 열어 키를 입력합니다 (1분 소요, 무료)\n' +
+      '취소: 도메인 매핑만으로 분석을 진행합니다 (AI 미사용)'
+    );
+    if (choice) { openSettings(); $('btn-analyze').disabled = false; return; }
+    $('classify-mode').value = 'domain';
+  }
   $('btn-analyze').disabled = true;
   setProgress(5, '파일 읽는 중...');
   let allItems = [];
@@ -2197,12 +2284,67 @@ function clearAllData() {
 }
 
 /* ===========================================================
+   Setup banner & status pills (public-distribution UX)
+   =========================================================== */
+function dismissSetupBanner() {
+  S.set('banner_dismissed', '1');
+  const b = $('setup-banner');
+  if (b) b.style.display = 'none';
+}
+
+function refreshSetupBanner() {
+  const banner = $('setup-banner');
+  if (!banner) return;
+  const dismissed = S.get('banner_dismissed') === '1';
+  const hasKey = !!S.get('gemini_key');
+  const hasItems = getItems().length > 0;
+  // Show if: not dismissed, AND (no key yet OR no items processed yet)
+  const show = !dismissed && (!hasKey || !hasItems);
+  banner.style.display = show ? 'flex' : 'none';
+}
+
+function refreshSettingsStatus() {
+  const root = $('settings-status');
+  if (!root) return;
+  root.textContent = '';
+  const hasKey = !!S.get('gemini_key');
+  const model = S.get('gemini_model') || 'gemini-2.5-flash';
+  const cats = getCategories();
+  const learned = Object.keys(S.getJSON('domain_learned', {})).length;
+
+  const aiPill = document.createElement('span');
+  aiPill.className = 'pill ' + (hasKey ? 'ok' : 'warn');
+  aiPill.title = '클릭해서 설정 변경';
+  aiPill.textContent = hasKey ? `🤖 AI: ${model}` : '⚠️ AI 키 미설정 (도메인 매핑만)';
+  aiPill.onclick = openSettings;
+  root.appendChild(aiPill);
+
+  const catPill = document.createElement('span');
+  catPill.className = 'pill';
+  catPill.title = '클릭해서 카테고리 편집';
+  catPill.innerHTML = `📂 카테고리 <b>${cats.length}</b>개`;
+  catPill.onclick = openSettings;
+  root.appendChild(catPill);
+
+  if (learned > 0) {
+    const learnedPill = document.createElement('span');
+    learnedPill.className = 'pill ok';
+    learnedPill.title = '학습된 도메인→카테고리 매핑';
+    learnedPill.innerHTML = `🧠 학습 <b>${learned}</b>개`;
+    learnedPill.onclick = openSettings;
+    root.appendChild(learnedPill);
+  }
+}
+
+/* ===========================================================
    Counts
    =========================================================== */
 function refreshCounts() {
   const items = getItems();
   $('cnt-pending').textContent = items.filter(x => x.status === 'pending').length;
   $('cnt-kept').textContent = items.filter(x => x.status === 'kept').length;
+  refreshSetupBanner();
+  refreshSettingsStatus();
 }
 
 /* ===========================================================
