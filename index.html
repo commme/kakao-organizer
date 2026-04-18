@@ -756,6 +756,11 @@ label {
   cursor: pointer;
 }
 .archive-item:hover { background: var(--card-hover); border-color: var(--accent-1); }
+.archive-item.selected {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: var(--accent-1);
+  box-shadow: 0 0 0 1px var(--accent-1) inset;
+}
 .archive-item .a-top { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
 .archive-item .a-cat { font-size: 10px; padding: 2px 7px; border-radius: 8px; background: rgba(168, 85, 247, 0.15); color: #c084fc; font-weight: 700; }
 .archive-item .a-domain { font-size: 11px; color: var(--muted); }
@@ -944,6 +949,16 @@ footer {
         </select>
       </div>
     </div>
+    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border);">
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; margin: 0;">
+        <input type="checkbox" id="auto-keep" checked style="width:16px;height:16px;accent-color:#a855f7;cursor:pointer;">
+        <span>📚 분류 후 바로 보관함으로 (검토 단계 건너뛰기)</span>
+      </label>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 6px; padding-left: 26px;">
+        체크하면 모든 항목이 자동 보관 → 보관함에서 카테고리별로 한꺼번에 정리·삭제할 수 있습니다.<br>
+        체크 해제하면 검토 모드(하나씩 또는 일괄)로 먼저 거치게 됩니다.
+      </div>
+    </div>
     <div style="margin-top: 16px; display: flex; gap: 10px; align-items: center;">
       <button class="btn primary" id="btn-analyze" onclick="startAnalysis()" disabled>⚡ 분석 시작</button>
       <span id="analyze-status" style="font-size: 12px; color: var(--muted);"></span>
@@ -962,10 +977,12 @@ footer {
   <div class="card">
     <div class="archive-toolbar">
       <input type="text" class="archive-search" id="archive-search" placeholder="🔍 검색 (내용·도메인·카테고리)" oninput="renderArchive()">
+      <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()">☑️ 선택 모드</button>
       <button class="btn success" onclick="exportExcel()">📊 엑셀 다운로드</button>
       <button class="btn small" onclick="showTab('trash')">🗑 휴지통</button>
     </div>
     <div class="cat-chips" id="cat-chips"></div>
+    <div id="archive-bulk-bar" class="review-bulk-bar" style="display:none; top: 60px;"></div>
     <div class="archive-grid" id="archive-grid"></div>
   </div>
 </div>
@@ -1492,6 +1509,15 @@ async function startAnalysis() {
   setProgress(30, `중복 제거 후 ${allItems.length}개 분류 시작...`);
 
   const classified = await runClassification(allItems);
+  // Auto-keep: send straight to archive (skip review)
+  const autoKeep = $('auto-keep') && $('auto-keep').checked;
+  if (autoKeep) {
+    const now = new Date().toISOString();
+    for (const it of classified) {
+      it.status = 'kept';
+      it.reviewedAt = now;
+    }
+  }
   // merge with existing pending items (don't lose previous work)
   const existing = getItems();
   const existingIds = new Set(existing.map(x => x.id));
@@ -1501,9 +1527,9 @@ async function startAnalysis() {
   saveItems(existing);
   setProgress(0, '');
   $('btn-analyze').disabled = false;
-  toast(`${classified.length}개 항목 추가 완료`);
+  toast(`${classified.length}개 항목 ${autoKeep ? '자동 보관' : '추가'} 완료`);
   refreshCounts();
-  showTab('review');
+  showTab(autoKeep ? 'archive' : 'review');
 }
 
 /* ===========================================================
@@ -1962,6 +1988,114 @@ document.addEventListener('keydown', e => {
    Archive
    =========================================================== */
 let archiveCatFilter = 'all';
+let archiveSelectMode = false;
+let archiveSelected = new Set();
+
+function toggleArchiveSelectMode() {
+  archiveSelectMode = !archiveSelectMode;
+  archiveSelected.clear();
+  const btn = $('btn-select-mode');
+  if (btn) {
+    btn.textContent = archiveSelectMode ? '✕ 선택 모드 끄기' : '☑️ 선택 모드';
+    btn.classList.toggle('primary', archiveSelectMode);
+  }
+  renderArchive();
+}
+
+function renderArchiveBulkBar(filtered) {
+  const bar = $('archive-bulk-bar');
+  if (!bar) return;
+  if (!archiveSelectMode) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.textContent = '';
+
+  const allCb = document.createElement('input');
+  allCb.type = 'checkbox';
+  allCb.title = '현재 보이는 항목 전체 선택/해제';
+  allCb.checked = filtered.length > 0 && filtered.every(x => archiveSelected.has(x.id));
+  allCb.indeterminate = !allCb.checked && filtered.some(x => archiveSelected.has(x.id));
+  allCb.onchange = () => {
+    if (allCb.checked) filtered.forEach(x => archiveSelected.add(x.id));
+    else filtered.forEach(x => archiveSelected.delete(x.id));
+    renderArchive();
+  };
+  bar.appendChild(allCb);
+
+  const cnt = document.createElement('div');
+  cnt.className = 'sel-count';
+  cnt.innerHTML = `선택 <b>${archiveSelected.size}</b> / 보이는 ${filtered.length}개`;
+  bar.appendChild(cnt);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.textContent = '선택 해제';
+  clearBtn.disabled = archiveSelected.size === 0;
+  clearBtn.onclick = () => { archiveSelected.clear(); renderArchive(); };
+  bar.appendChild(clearBtn);
+
+  const catBtn = document.createElement('button');
+  catBtn.textContent = `📂 카테고리 변경 (${archiveSelected.size})`;
+  catBtn.disabled = archiveSelected.size === 0;
+  catBtn.onclick = () => bulkChangeCategory();
+  bar.appendChild(catBtn);
+
+  const sp = document.createElement('div');
+  sp.className = 'spacer';
+  bar.appendChild(sp);
+
+  const trashBtn = document.createElement('button');
+  trashBtn.className = 'discard-btn';
+  trashBtn.textContent = `🗑 휴지통으로 (${archiveSelected.size})`;
+  trashBtn.disabled = archiveSelected.size === 0;
+  trashBtn.onclick = () => bulkArchiveAction('discarded');
+  bar.appendChild(trashBtn);
+}
+
+function bulkArchiveAction(status) {
+  if (!archiveSelected.size) return;
+  const n = archiveSelected.size;
+  if (n >= 5 && !confirm(`${n}개 항목을 휴지통으로 보냅니다. 계속하시겠습니까?`)) return;
+  const items = getItems();
+  for (const id of archiveSelected) {
+    const it = items.find(x => x.id === id);
+    if (it) it.status = status;
+  }
+  saveItems(items);
+  archiveSelected.clear();
+  refreshCounts();
+  renderArchive();
+  toast(`${n}개 휴지통으로 이동`);
+}
+
+function bulkChangeCategory() {
+  if (!archiveSelected.size) return;
+  const cats = getCategories();
+  const choice = prompt(
+    `선택한 ${archiveSelected.size}개 항목의 카테고리를 변경합니다.\n\n${cats.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n\n숫자 또는 카테고리명 입력:`
+  );
+  if (!choice) return;
+  let newCat = choice.trim();
+  const num = parseInt(newCat);
+  if (!isNaN(num) && cats[num - 1]) newCat = cats[num - 1];
+  if (!cats.includes(newCat)) {
+    if (!confirm(`"${newCat}" 카테고리를 새로 추가하시겠습니까?`)) return;
+    cats.push(newCat); saveCategories(cats);
+  }
+  const items = getItems();
+  for (const id of archiveSelected) {
+    const it = items.find(x => x.id === id);
+    if (it) {
+      if (it.domain) learnDomain(it.domain, newCat);
+      it.category = newCat;
+      it.confidence = 1.0;
+      it.source = 'manual';
+    }
+  }
+  saveItems(items);
+  const n = archiveSelected.size;
+  archiveSelected.clear();
+  renderArchive();
+  toast(`${n}개 → "${newCat}" 카테고리 변경`);
+}
 
 function renderArchive() {
   const items = getItems().filter(x => x.status === 'kept');
@@ -1996,6 +2130,8 @@ function renderArchive() {
       (x.category || '').toLowerCase().includes(q)
     );
   }
+  filtered.sort((a, b) => (b.reviewedAt || '').localeCompare(a.reviewedAt || ''));
+  renderArchiveBulkBar(filtered);
   if (!filtered.length) {
     const e = document.createElement('div');
     e.className = 'archive-empty';
@@ -2003,17 +2139,51 @@ function renderArchive() {
     grid.appendChild(e);
     return;
   }
-  filtered.sort((a, b) => (b.reviewedAt || '').localeCompare(a.reviewedAt || ''));
   for (const it of filtered) grid.appendChild(makeArchiveItem(it, false));
 }
 
 function makeArchiveItem(it, isTrash) {
   const div = document.createElement('div');
-  div.className = 'archive-item';
-  div.onclick = () => { if (it.url && isSafeUrl(it.url)) window.open(it.url, '_blank', 'noopener'); };
+  div.className = 'archive-item' + (!isTrash && archiveSelectMode && archiveSelected.has(it.id) ? ' selected' : '');
+
+  if (!isTrash && archiveSelectMode) {
+    div.onclick = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+      const cb = div.querySelector('.a-cb');
+      if (cb) { cb.checked = !cb.checked; cb.onchange(); }
+    };
+  } else {
+    div.onclick = () => { if (it.url && isSafeUrl(it.url)) window.open(it.url, '_blank', 'noopener'); };
+  }
 
   const top = document.createElement('div');
   top.className = 'a-top';
+
+  if (!isTrash && archiveSelectMode) {
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'a-cb';
+    cb.style.cssText = 'accent-color:#a855f7;cursor:pointer;margin-right:4px;width:15px;height:15px;';
+    cb.checked = archiveSelected.has(it.id);
+    cb.onchange = () => {
+      if (cb.checked) archiveSelected.add(it.id);
+      else archiveSelected.delete(it.id);
+      div.classList.toggle('selected', cb.checked);
+      // partial bar update
+      const bar = $('archive-bulk-bar');
+      if (bar) {
+        const cnt = bar.querySelector('.sel-count b');
+        if (cnt) cnt.textContent = archiveSelected.size;
+        bar.querySelectorAll('button').forEach(b => {
+          b.disabled = archiveSelected.size === 0;
+          if (b.textContent.includes('휴지통으로')) b.textContent = `🗑 휴지통으로 (${archiveSelected.size})`;
+          if (b.textContent.includes('카테고리 변경')) b.textContent = `📂 카테고리 변경 (${archiveSelected.size})`;
+        });
+      }
+    };
+    top.appendChild(cb);
+  }
+
   const cat = document.createElement('span');
   cat.className = 'a-cat';
   cat.textContent = it.category || '미분류';
