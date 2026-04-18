@@ -2334,11 +2334,12 @@ function action(id, status) {
   }, 200);
 }
 
-function openCategoryPicker(id) {
+// 보관함 카드에서 개별 카테고리 변경 (학습 트리거)
+function changeItemCategory(id) {
   const it = getItems().find(x => x.id === id);
   if (!it) return;
   const cats = getCategories();
-  const choice = prompt(`카테고리 선택:\n\n${cats.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n\n숫자 또는 카테고리명 입력:`, it.category);
+  const choice = prompt(`카테고리 선택 (현재: ${it.category || '미분류'}):\n\n${cats.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n\n숫자 또는 카테고리명 입력:`, it.category);
   if (!choice) return;
   let newCat = choice.trim();
   const n = parseInt(newCat);
@@ -2348,9 +2349,8 @@ function openCategoryPicker(id) {
     cats.push(newCat); saveCategories(cats);
   }
   updateItem(id, { category: newCat, confidence: 1.0, source: 'manual' });
-  // learn domain
   if (it.domain) learnDomain(it.domain, newCat);
-  renderReview();
+  renderArchive();
   toast(`카테고리 → ${newCat}` + (it.domain ? ` (${it.domain} 학습됨)` : ''));
 }
 
@@ -2731,6 +2731,12 @@ function makeArchiveItem(it, isTrash) {
       sumBtn.onclick = (e) => { e.stopPropagation(); summarizeItem(it.id); };
       acts.appendChild(sumBtn);
     }
+    // 카테고리 변경 (개별, 학습 트리거)
+    const catBtn = document.createElement('button');
+    catBtn.title = '카테고리 변경';
+    catBtn.textContent = '📂';
+    catBtn.onclick = (e) => { e.stopPropagation(); changeItemCategory(it.id); };
+    acts.appendChild(catBtn);
     const trash = document.createElement('button');
     trash.title = '휴지통';
     trash.textContent = '🗑';
