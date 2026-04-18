@@ -24,6 +24,9 @@ desktop.ini
 _tmp/
 *.log
 
+# 로컬 전용 매뉴얼 (노션/개인 공유용, 깃헙 X)
+RELEASE.md
+
 # 도구 상태 (자동 생성)
 .omc/
 .bkit/
