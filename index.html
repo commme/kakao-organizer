@@ -704,6 +704,37 @@ label {
   align-items: center;
   flex-wrap: wrap;
 }
+.dropdown-wrap { position: relative; display: inline-block; }
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: rgba(28, 28, 38, 0.98);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  z-index: 100;
+}
+.dropdown-menu.open { display: block; }
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dropdown-menu button:hover { background: rgba(168, 85, 247, 0.18); }
+.dropdown-sep { height: 1px; background: var(--border); margin: 4px 6px; }
 .archive-search {
   flex: 1;
   min-width: 200px;
@@ -715,12 +746,36 @@ label {
   gap: 8px;
   margin-bottom: 16px;
 }
-.view-row, .cat-row {
+.view-row, .cat-row, .sub-row {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
 }
 .view-row { padding-bottom: 8px; border-bottom: 1px dashed var(--border); }
+.sub-row {
+  padding: 8px 0 4px 12px;
+  margin-left: 6px;
+  border-left: 2px solid rgba(168, 85, 247, 0.3);
+}
+.sub-chip {
+  padding: 4px 11px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.sub-chip:hover { color: var(--text); border-color: var(--accent-2); }
+.sub-chip.active {
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  border-color: transparent;
+  color: white;
+}
+.sub-chip .n { margin-left: 4px; font-weight: 800; opacity: 0.85; }
 .view-chip {
   padding: 6px 14px;
   border-radius: 14px;
@@ -754,10 +809,10 @@ label {
   margin-left: 4px;
   letter-spacing: 0.2px;
 }
-.a-badge-prompt-image { background: rgba(236, 72, 153, 0.15); color: #f0abfc; }
-.a-badge-prompt-video { background: rgba(168, 85, 247, 0.15); color: #c4b5fd; }
-.a-badge-prompt-code  { background: rgba(34, 197, 94, 0.15); color: #86efac; }
-.a-badge-guide        { background: rgba(251, 191, 36, 0.15); color: #fcd34d; }
+.a-badge-image { background: rgba(236, 72, 153, 0.15); color: #f0abfc; }
+.a-badge-video { background: rgba(168, 85, 247, 0.15); color: #c4b5fd; }
+.a-badge-dev   { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+.a-badge-guide { background: rgba(251, 191, 36, 0.15); color: #fcd34d; }
 .a-summary {
   margin-top: 8px;
   padding: 10px 12px;
@@ -1026,12 +1081,19 @@ footer {
   <div class="card">
     <div class="archive-toolbar">
       <input type="text" class="archive-search" id="archive-search" placeholder="🔍 검색 (내용·도메인·카테고리)" oninput="renderArchive()">
-      <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()">☑️ 선택</button>
-      <button class="btn primary" onclick="summarizeAllAndExport()" title="현재 보이는 URL을 모두 AI 요약하고 자동으로 엑셀 다운로드">⚡ 전체 AI 요약 → 엑셀</button>
-      <button class="btn success" onclick="exportExcel()">📊 엑셀</button>
-      <button class="btn small" onclick="downloadPrompts('md')" title="프롬프트/가이드만 Markdown으로">📝 프롬프트 .md</button>
-      <button class="btn small" onclick="downloadPrompts('xlsx')" title="프롬프트/가이드만 엑셀로">📋 프롬프트 .xlsx</button>
-      <button class="btn small" onclick="showTab('trash')">🗑 휴지통</button>
+      <button class="btn small" id="btn-select-mode" onclick="toggleArchiveSelectMode()" title="여러 항목 선택 모드">☑️ 선택</button>
+      <button class="btn primary" onclick="summarizeAllAndExport()" title="현재 보이는 항목을 모두 AI 요약하고 자동으로 엑셀 다운로드">⚡ AI 요약</button>
+      <div class="dropdown-wrap">
+        <button class="btn success" onclick="toggleExportMenu(event)" title="내보내기 옵션">📤 내보내기 ▾</button>
+        <div class="dropdown-menu" id="export-menu">
+          <button onclick="closeExportMenu(); exportExcel()">📊 보관함 전체 (.xlsx)</button>
+          <button onclick="closeExportMenu(); exportSummariesExcel()">✨ AI 요약 결과만 (.xlsx)</button>
+          <div class="dropdown-sep"></div>
+          <button onclick="closeExportMenu(); downloadPrompts('md')">🎨 프롬프트 (.md)</button>
+          <button onclick="closeExportMenu(); downloadPrompts('xlsx')">📋 프롬프트 (.xlsx)</button>
+        </div>
+      </div>
+      <button class="btn small" onclick="showTab('trash')" title="휴지통">🗑</button>
     </div>
     <div class="cat-chips" id="cat-chips"></div>
     <div id="archive-bulk-bar" class="review-bulk-bar" style="display:none; top: 60px;"></div>
@@ -1094,6 +1156,12 @@ footer {
       <button class="btn small danger" onclick="clearLearnedMap()">학습 초기화</button>
     </div>
 
+    <div style="margin-bottom: 20px;">
+      <label>프롬프트 분류 키워드 <button class="btn small" onclick="resetPromptRules()" style="float: right;">기본값 복원</button></label>
+      <p class="desc" style="margin: 4px 0;">쉼표로 구분된 키워드 (소문자). 텍스트에 포함되면 해당 유형으로 자동 분류됩니다.</p>
+      <div id="prompt-rules-edit"></div>
+    </div>
+
     <div style="border-top: 1px solid var(--border); padding-top: 16px; display: flex; gap: 8px;">
       <button class="btn primary" onclick="saveSettings()">저장</button>
       <button class="btn danger" onclick="clearAllData()">전체 데이터 초기화</button>
@@ -1132,15 +1200,30 @@ const S = {
    Defaults
    =========================================================== */
 const DEFAULT_CATEGORIES = [
-  'AI', 'SNS', '개발', '디자인', '마케팅', '쇼핑', '뉴스', '블로그',
-  '음식', '여행', '금융', '러닝/라이프', '커리어', '업무', 'SAP', '미분류'
+  // 일/생산성
+  'AI/툴', '개발', '디자인', '업무', '커리어',
+  // 정보/학습
+  '학습', '뉴스', '블로그',
+  // 관계/라이프
+  'SNS', '음식', '여행', '건강', '취미',
+  // 자산/소비
+  '쇼핑', '금융',
+  '미분류'
 ];
+
+// 구버전 카테고리 → 신버전 매핑 (마이그레이션용)
+const CAT_MIGRATE = {
+  'AI': 'AI/툴',
+  '마케팅': '업무',
+  'SAP': '업무',
+  '러닝/라이프': '건강',
+};
 
 const DEFAULT_DOMAIN_MAP = {
   // AI
-  'chat.openai.com': 'AI', 'chatgpt.com': 'AI', 'openai.com': 'AI',
-  'claude.ai': 'AI', 'huggingface.co': 'AI', 'perplexity.ai': 'AI',
-  'gemini.google.com': 'AI', 'aistudio.google.com': 'AI', 'anthropic.com': 'AI',
+  'chat.openai.com': 'AI/툴', 'chatgpt.com': 'AI/툴', 'openai.com': 'AI/툴',
+  'claude.ai': 'AI/툴', 'huggingface.co': 'AI/툴', 'perplexity.ai': 'AI/툴',
+  'gemini.google.com': 'AI/툴', 'aistudio.google.com': 'AI/툴', 'anthropic.com': 'AI/툴',
   // SNS
   'instagram.com': 'SNS', 'threads.net': 'SNS',
   'youtube.com': 'SNS', 'youtu.be': 'SNS', 'm.youtube.com': 'SNS',
@@ -1186,24 +1269,26 @@ const DEFAULT_DOMAIN_MAP = {
   // 금융
   'toss.im': '금융', 'kakaopay.com': '금융', 'kbstar.com': '금융',
   // 학습
-  'udemy.com': '러닝/라이프', 'coursera.org': '러닝/라이프',
-  'inflearn.com': '러닝/라이프', 'class101.net': '러닝/라이프',
+  'udemy.com': '학습', 'coursera.org': '학습',
+  'inflearn.com': '학습', 'class101.net': '학습',
+  // 건강
+  'huel.com': '건강', 'nike.com/run-club': '건강',
 };
 
 const MEMO_KEYWORDS = [
-  { re: /회의|미팅|meeting|발표|프레젠|agenda/i, cat: '업무' },
+  { re: /회의|미팅|meeting|발표|프레젠|agenda|광고|마케팅|캠페인|CTR/i, cat: '업무' },
   { re: /맛집|레스토랑|카페|음식|치킨|피자|배달|메뉴/i, cat: '음식' },
-  { re: /운동|헬스|요가|러닝|다이어트|건강/i, cat: '러닝/라이프' },
-  { re: /할일|todo|체크|리스트|장보기|마트/i, cat: '러닝/라이프' },
+  { re: /운동|헬스|요가|러닝|다이어트|건강|수면|영양|식단|명상|요가/i, cat: '건강' },
   { re: /여행|비행기|호텔|숙소|관광|휴가/i, cat: '여행' },
-  { re: /코딩|개발|버그|서버|API|프론트|백엔드/i, cat: '개발' },
+  { re: /코딩|개발|버그|서버|API|프론트|백엔드|함수|클래스|디버깅/i, cat: '개발' },
   { re: /디자인|로고|UI|UX|컬러|폰트/i, cat: '디자인' },
-  { re: /광고|마케팅|캠페인|CTR|전환|퍼포먼스/i, cat: '마케팅' },
-  { re: /이력서|면접|채용|연봉|이직|포트폴리오/i, cat: '커리어' },
-  { re: /GPT|AI|인공지능|프롬프트|챗봇|생성형|LLM/i, cat: 'AI' },
-  { re: /SAP|ERP|ABAP|BTP|S\/4HANA|Fiori/i, cat: 'SAP' },
-  { re: /주식|투자|코인|ETF|배당|적금|대출/i, cat: '금융' },
-  { re: /쇼핑|할인|쿠폰|세일|구매|주문/i, cat: '쇼핑' },
+  { re: /이력서|면접|채용|연봉|이직|포트폴리오|커리어/i, cat: '커리어' },
+  { re: /GPT|AI|인공지능|프롬프트|챗봇|생성형|LLM|에이전트|MCP|Claude|Gemini/i, cat: 'AI/툴' },
+  { re: /강의|코스|튜토리얼|학습|공부|책|독서/i, cat: '학습' },
+  { re: /게임|넷플릭스|디즈니|영화|드라마|음악|아이돌|덕질|콘서트/i, cat: '취미' },
+  { re: /주식|투자|코인|ETF|배당|적금|대출|저축|연금/i, cat: '금융' },
+  { re: /쇼핑|할인|쿠폰|세일|구매|주문|장바구니/i, cat: '쇼핑' },
+  { re: /할일|todo|체크|리스트|장보기|마트/i, cat: '업무' },
 ];
 
 /* ===========================================================
@@ -1367,38 +1452,79 @@ function makeItemFromText(text, date) {
     type, content: text, url, domain, date,
     category: '', confidence: 0, source: '',
     status: 'pending', reviewedAt: null,
-    promptType: detectPromptType(text), // 'prompt-image' | 'prompt-video' | 'prompt-code' | 'guide' | null
+    promptType: detectPromptType(text), // 'image' | 'video' | 'dev' | 'guide' | null
     summary: '', // AI 요약 결과 (수동 트리거)
   };
 }
 
-// 프롬프트/가이드 자동 감지 (regex 기반, 무료, 분류 시점 자동)
+// 프롬프트/가이드 자동 감지 — 카테고리 하위 태그 (설정에서 키워드 편집 가능)
+// 반환값: 'image' | 'video' | 'dev' | 'guide' | null
+const DEFAULT_PROMPT_RULES = {
+  image: {
+    label: '🎨 이미지',
+    keywords: 'midjourney, stable diffusion, sdxl, flux, dall-e, dalle, imagen, leonardo, ideogram, civitai, /imagine, --ar, --v, aspect ratio, cinematic, photorealistic, hyperrealistic, octane, unreal engine, illustration style, anime style, oil painting, watercolor'
+  },
+  video: {
+    label: '🎬 영상',
+    keywords: 'sora, veo 2, veo 3, runway, kling, pika, haiper, luma, hailuo, minimax, hunyuan, wan 2, camera pan, camera zoom, dolly, tracking shot, wide shot, close-up, aerial, fps'
+  },
+  dev: {
+    label: '💻 개발소스',
+    keywords: '```, function, class, import, def , const , async , await, return , useState, useEffect, interface , export , typescript, python, javascript'
+  },
+  guide: {
+    label: '📋 가이드',
+    keywords: '## , ### , 단계, step, chapter, 1. , 2. , 3. , tip, how to, 튜토리얼, 가이드, 사용법, 정리'
+  }
+};
+
+function getPromptRules() {
+  const custom = S.getJSON('prompt_rules', null);
+  if (custom && typeof custom === 'object') {
+    const merged = {};
+    for (const t of ['image', 'video', 'dev', 'guide']) {
+      merged[t] = custom[t] || DEFAULT_PROMPT_RULES[t];
+    }
+    return merged;
+  }
+  return { ...DEFAULT_PROMPT_RULES };
+}
+
+function savePromptRules(rules) { S.setJSON('prompt_rules', rules); }
+
+function keywordsToArray(csv) {
+  return String(csv || '')
+    .split(/[,\n]/)
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function detectPromptType(text) {
   if (!text) return null;
   const t = text.toLowerCase();
-  // 1. 이미지 생성 프롬프트
-  if (/midjourney|stable diffusion|dall-?e|flux|imagen|sdxl|nano banana|leonardo|ideogram|civitai|\/imagine|--ar |--v \d|--style|aspect ratio/i.test(t)
-      || (/cinematic|photorealistic|hyperrealistic|octane render|unreal engine|3d render|illustration|anime style|oil painting|watercolor/i.test(t)
-          && text.length > 80)) {
-    return 'prompt-image';
-  }
-  // 2. 영상 생성 프롬프트
-  if (/sora|veo ?[23]|runway|kling|pika|haiper|luma|gen-?[23]|hailuo|minimax|hunyuan|wan ?2/i.test(t)
-      || (/(camera (pan|zoom|dolly|tracking|orbit)|wide shot|close-?up|aerial|fps|tracking shot|depth of field)/i.test(t)
-          && text.length > 80)) {
-    return 'prompt-video';
-  }
-  // 3. 시스템/역할 프롬프트
-  if ((/system prompt|you are an? \w+ (expert|assistant|engineer|specialist)|당신은 .{0,20}(전문가|어시스턴트|입니다)|역할\s*[:：]|role\s*[:：]/i.test(t)
-       || /<\/?(role|system|instruction|context|task)>/i.test(t))
-      && text.length > 100) {
-    return 'prompt-code';
-  }
-  // 4. 가이드 (구조화된 긴 텍스트)
-  if (text.length > 300
-      && (/##\s|^\d+\.\s|단계\s?\d|step\s?\d|tip\s?\d|chapter\s?\d/im.test(text)
-          || (text.match(/\n/g) || []).length > 5)) {
-    return 'guide';
+  const rules = getPromptRules();
+  const order = ['image', 'video', 'dev', 'guide'];
+  for (const type of order) {
+    const kws = keywordsToArray(rules[type].keywords);
+    if (!kws.length) continue;
+    // 키워드 중 2개 이상 매치 OR 특수 패턴 1개 매치 (/imagine 등)
+    let hits = 0;
+    let strong = false;
+    for (const kw of kws) {
+      if (t.includes(kw)) {
+        hits++;
+        // 도구명/슬래시 명령어 같은 강한 신호는 1회로도 충분
+        if (/(midjourney|sdxl|flux|sora|veo|runway|kling|pika|\/imagine|--ar|```)/.test(kw)) {
+          strong = true;
+          break;
+        }
+      }
+    }
+    if (strong || hits >= 2) {
+      // guide는 최소 300자 이상일 때만
+      if (type === 'guide' && text.length < 300) continue;
+      return type;
+    }
   }
   return null;
 }
@@ -1480,27 +1606,35 @@ ${items.map((it, i) => `${i}. ${(it.content || '').slice(0, 200).replace(/\n/g, 
 async function summarizeOne(item) {
   const key = S.get('gemini_key');
   if (!key) { toast('Gemini API 키 필요 (설정에서 입력)'); return null; }
-  if (!item.url || !isSafeUrl(item.url)) { toast('요약 가능한 URL이 없음'); return null; }
+  const isUrl = !!(item.url && isSafeUrl(item.url));
+  const hasText = !!(item.content && item.content.trim());
+  if (!isUrl && !hasText) { toast('요약할 내용 없음'); return null; }
   const model = S.get('gemini_model') || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-  const prompt = `다음 URL의 페이지를 한국어로 3~4줄 요약해 주세요. 핵심 정보·결론·실용적 시사점 위주.\n순수 텍스트만 출력 (마크다운/번호 금지).\n\nURL: ${item.url}`;
+  const prompt = isUrl
+    ? `다음 URL의 페이지가 무엇에 대한 내용인지 한국어로 한 줄(공백 포함 30자 이내)로 요약해 주세요. 제목 복사 금지, 내용 요약. 마크다운/따옴표/접두어 금지, 답변만 출력.\n\nURL: ${item.url}`
+    : `다음 메모의 핵심을 한국어로 한 줄(공백 포함 50자 이내)로 요약해 주세요. 마크다운/따옴표/접두어 금지, 답변만 출력.\n\n${(item.content || '').slice(0, 2000)}`;
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3, maxOutputTokens: 120 }
+  };
+  if (isUrl) body.tools = [{ urlContext: {} }];
   try {
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ urlContext: {} }],
-        generationConfig: { temperature: 0.3 }
-      })
+      body: JSON.stringify(body)
     });
     if (!r.ok) {
       const errText = await r.text();
       throw new Error(`HTTP ${r.status}: ${errText.slice(0, 200)}`);
     }
     const data = await r.json();
-    const summary = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+    let summary = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
     if (!summary) throw new Error('빈 응답');
+    summary = summary.replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, ' ').trim();
+    const limit = isUrl ? 30 : 50;
+    if (summary.length > limit) summary = summary.slice(0, limit) + '…';
     return summary;
   } catch (e) {
     console.error('summarize failed:', e);
@@ -1525,9 +1659,9 @@ async function summarizeItem(id) {
 async function summarizeBulk() {
   if (!archiveSelected.size) { toast('항목을 선택하세요'); return; }
   const items = getItems();
-  const targets = items.filter(x => archiveSelected.has(x.id) && x.url && isSafeUrl(x.url) && !x.summary);
-  if (!targets.length) { toast('요약 대상 없음 (URL 없거나 이미 요약됨)'); return; }
-  if (!confirm(`${targets.length}개 URL을 AI로 요약합니다.\nGemini API 호출 (~${Math.ceil(targets.length * 0.7)}원).\n진행할까요?`)) return;
+  const targets = items.filter(x => archiveSelected.has(x.id) && !x.summary && ((x.url && isSafeUrl(x.url)) || (x.content && x.content.trim())));
+  if (!targets.length) { toast('요약 대상 없음 (이미 요약됨 또는 내용 없음)'); return; }
+  if (!confirm(`${targets.length}개 항목을 AI로 요약합니다.\nGemini API 호출 (~${Math.ceil(targets.length * 0.7)}원).\n진행할까요?`)) return;
   await runSummarize(targets);
   archiveSelected.clear();
   renderArchive();
@@ -1551,7 +1685,7 @@ async function summarizeAllAndExport() {
     scope = items.filter(x => x.promptType === archiveViewFilter);
     scopeLabel = '현재 필터';
   }
-  const targets = scope.filter(x => x.url && isSafeUrl(x.url) && !x.summary);
+  const targets = scope.filter(x => !x.summary && ((x.url && isSafeUrl(x.url)) || (x.content && x.content.trim())));
   const alreadyDone = scope.filter(x => x.summary).length;
 
   if (!targets.length) {
@@ -2227,7 +2361,7 @@ document.addEventListener('keydown', e => {
    Archive
    =========================================================== */
 let archiveCatFilter = 'all';
-let archiveViewFilter = 'all'; // 'all' | 'prompt-image' | 'prompt-video' | 'prompt-code' | 'guide' | 'summarizable' | 'summarized'
+let archiveViewFilter = 'all'; // 'all' | 'image' | 'video' | 'dev' | 'guide' | 'summarizable' | 'summarized'
 let archiveSelectMode = false;
 let archiveSelected = new Set();
 
@@ -2346,73 +2480,85 @@ function bulkChangeCategory() {
 function renderArchive() {
   const items = getItems().filter(x => x.status === 'kept');
 
-  // ── View filters (프롬프트/요약): 카테고리 위에 표시
   const chips = $('cat-chips');
   chips.textContent = '';
-  const viewCounts = {
-    'prompt-image': items.filter(x => x.promptType === 'prompt-image').length,
-    'prompt-video': items.filter(x => x.promptType === 'prompt-video').length,
-    'prompt-code':  items.filter(x => x.promptType === 'prompt-code').length,
-    'guide':        items.filter(x => x.promptType === 'guide').length,
-    'summarizable': items.filter(x => isSummarizable(x) && !x.summary).length,
-    'summarized':   items.filter(x => x.summary).length,
-  };
-  const viewDefs = [
-    ['all',          '📁 전체',         items.length],
-    ['prompt-image', '🎨 이미지 프롬프트', viewCounts['prompt-image']],
-    ['prompt-video', '🎬 영상 프롬프트',   viewCounts['prompt-video']],
-    ['prompt-code',  '💻 시스템 프롬프트', viewCounts['prompt-code']],
-    ['guide',        '📋 가이드',         viewCounts['guide']],
-    ['summarizable', '🤖 요약 가능 URL',  viewCounts['summarizable']],
-    ['summarized',   '✅ 요약 완료',      viewCounts['summarized']],
-  ];
-  const viewRow = document.createElement('div');
-  viewRow.className = 'view-row';
-  for (const [v, label, n] of viewDefs) {
-    if (v !== 'all' && n === 0) continue; // 0개면 표시 안 함 (전체는 항상)
-    const b = document.createElement('button');
-    b.className = 'view-chip' + (archiveViewFilter === v ? ' active' : '');
-    b.innerHTML = `${label} <span class="n">${n}</span>`;
-    b.onclick = () => { archiveViewFilter = v; archiveCatFilter = 'all'; renderArchive(); };
-    viewRow.appendChild(b);
-  }
-  chips.appendChild(viewRow);
 
-  // ── 1차 필터: view filter 적용
-  let viewItems = items;
-  if (archiveViewFilter === 'summarizable') {
-    viewItems = items.filter(x => isSummarizable(x) && !x.summary);
-  } else if (archiveViewFilter === 'summarized') {
-    viewItems = items.filter(x => x.summary);
-  } else if (archiveViewFilter !== 'all') {
-    viewItems = items.filter(x => x.promptType === archiveViewFilter);
-  }
-
-  // ── 2차 필터: category chips
-  const counts = {};
-  for (const it of viewItems) counts[it.category || '미분류'] = (counts[it.category || '미분류'] || 0) + 1;
+  // ── 1차 (PRIMARY): 카테고리 chips
+  const catCounts = {};
+  for (const it of items) catCounts[it.category || '미분류'] = (catCounts[it.category || '미분류'] || 0) + 1;
   const catRow = document.createElement('div');
   catRow.className = 'cat-row';
   const allChip = document.createElement('button');
   allChip.className = 'cat-chip' + (archiveCatFilter === 'all' ? ' active' : '');
-  allChip.innerHTML = `전체 <span class="n">${viewItems.length}</span>`;
-  allChip.onclick = () => { archiveCatFilter = 'all'; renderArchive(); };
+  allChip.innerHTML = `📁 전체 <span class="n">${items.length}</span>`;
+  allChip.onclick = () => { archiveCatFilter = 'all'; archiveViewFilter = 'all'; renderArchive(); };
   catRow.appendChild(allChip);
-  const cats = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const cats = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a]);
   for (const c of cats) {
     const chip = document.createElement('button');
     chip.className = 'cat-chip' + (archiveCatFilter === c ? ' active' : '');
-    chip.innerHTML = `${esc(c)} <span class="n">${counts[c]}</span>`;
-    chip.onclick = () => { archiveCatFilter = c; renderArchive(); };
+    chip.innerHTML = `${esc(c)} <span class="n">${catCounts[c]}</span>`;
+    chip.onclick = () => { archiveCatFilter = c; archiveViewFilter = 'all'; renderArchive(); };
     catRow.appendChild(chip);
   }
   chips.appendChild(catRow);
+
+  // ── 카테고리 적용 후 scope (sub-chips는 이 scope에서 계산)
+  const inCat = archiveCatFilter === 'all' ? items : items.filter(x => (x.category || '미분류') === archiveCatFilter);
+
+  // ── 2차 (SUB): 프롬프트 유형 + AI 요약 (선택된 카테고리 내에서만)
+  const subCounts = {
+    'image':        inCat.filter(x => x.promptType === 'image').length,
+    'video':        inCat.filter(x => x.promptType === 'video').length,
+    'dev':          inCat.filter(x => x.promptType === 'dev').length,
+    'guide':        inCat.filter(x => x.promptType === 'guide').length,
+    'summarizable': inCat.filter(x => isSummarizable(x) && !x.summary).length,
+    'summarized':   inCat.filter(x => x.summary).length,
+  };
+  const subDefs = [
+    ['image',        '🎨 이미지'],
+    ['video',        '🎬 영상'],
+    ['dev',          '💻 개발소스'],
+    ['guide',        '📋 가이드'],
+    ['summarizable', '🤖 요약 대기'],
+    ['summarized',   '✅ 요약 완료'],
+  ];
+  const visibleSubs = subDefs.filter(([k]) => subCounts[k] > 0);
+  if (visibleSubs.length) {
+    const subRow = document.createElement('div');
+    subRow.className = 'sub-row';
+    const allSub = document.createElement('button');
+    allSub.className = 'sub-chip' + (archiveViewFilter === 'all' ? ' active' : '');
+    allSub.innerHTML = `전체 <span class="n">${inCat.length}</span>`;
+    allSub.onclick = () => { archiveViewFilter = 'all'; renderArchive(); };
+    subRow.appendChild(allSub);
+    for (const [k, label] of visibleSubs) {
+      const b = document.createElement('button');
+      b.className = 'sub-chip' + (archiveViewFilter === k ? ' active' : '');
+      b.innerHTML = `${label} <span class="n">${subCounts[k]}</span>`;
+      b.onclick = () => { archiveViewFilter = k; renderArchive(); };
+      subRow.appendChild(b);
+    }
+    chips.appendChild(subRow);
+  } else if (archiveViewFilter !== 'all') {
+    archiveViewFilter = 'all'; // 현재 카테고리에 sub 없으면 reset
+  }
+
+  // ── view filter 적용
+  let viewItems = inCat;
+  if (archiveViewFilter === 'summarizable') {
+    viewItems = inCat.filter(x => isSummarizable(x) && !x.summary);
+  } else if (archiveViewFilter === 'summarized') {
+    viewItems = inCat.filter(x => x.summary);
+  } else if (archiveViewFilter !== 'all') {
+    viewItems = inCat.filter(x => x.promptType === archiveViewFilter);
+  }
 
   // grid
   const q = ($('archive-search').value || '').toLowerCase().trim();
   const grid = $('archive-grid');
   grid.textContent = '';
-  let filtered = archiveCatFilter === 'all' ? viewItems : viewItems.filter(x => (x.category || '미분류') === archiveCatFilter);
+  let filtered = viewItems;
   if (q) {
     filtered = filtered.filter(x =>
       (x.content || '').toLowerCase().includes(q) ||
@@ -2484,9 +2630,9 @@ function makeArchiveItem(it, isTrash) {
     const badge = document.createElement('span');
     badge.className = 'a-badge a-badge-' + it.promptType;
     badge.textContent = ({
-      'prompt-image': '🎨 이미지',
-      'prompt-video': '🎬 영상',
-      'prompt-code': '💻 시스템',
+      'image': '🎨 이미지',
+      'video': '🎬 영상',
+      'dev': '💻 개발',
       'guide': '📋 가이드'
     })[it.promptType] || '';
     top.appendChild(badge);
@@ -2615,6 +2761,47 @@ function emptyTrash() {
 }
 
 /* ===========================================================
+   Export Dropdown
+   =========================================================== */
+function toggleExportMenu(ev) {
+  if (ev) ev.stopPropagation();
+  const m = $('export-menu');
+  if (!m) return;
+  m.classList.toggle('open');
+}
+function closeExportMenu() {
+  const m = $('export-menu');
+  if (m) m.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const m = $('export-menu');
+  if (!m || !m.classList.contains('open')) return;
+  if (!e.target.closest('.dropdown-wrap')) closeExportMenu();
+});
+
+// AI 요약 결과만 (요약 있는 항목 추출)
+function exportSummariesExcel() {
+  const items = getItems().filter(x => x.status === 'kept' && x.summary);
+  if (!items.length) { toast('AI 요약된 항목이 없습니다 (먼저 ⚡ AI 요약 실행)'); return; }
+  const wb = XLSX.utils.book_new();
+  const rows = items.map(it => ({
+    카테고리: it.category || '미분류',
+    AI요약: it.summary,
+    원본내용: it.content,
+    URL: it.url || '',
+    도메인: it.domain || '',
+    프롬프트유형: ({'image':'이미지','video':'영상','dev':'개발소스','guide':'가이드'})[it.promptType] || '',
+    날짜: it.date,
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:50},{wch:60},{wch:30},{wch:20},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws, 'AI 요약');
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `kakao-ai요약_${today}.xlsx`);
+  toast(`${items.length}개 AI 요약 엑셀 내보냄`);
+}
+
+/* ===========================================================
    Excel Export
    =========================================================== */
 function exportExcel() {
@@ -2626,7 +2813,7 @@ function exportExcel() {
   const allRows = items.map(it => ({
     카테고리: it.category || '미분류',
     타입: it.type,
-    프롬프트유형: ({'prompt-image':'이미지','prompt-video':'영상','prompt-code':'시스템','guide':'가이드'})[it.promptType] || '',
+    프롬프트유형: ({'image':'이미지','video':'영상','dev':'개발소스','guide':'가이드'})[it.promptType] || '',
     내용: it.content,
     AI요약: it.summary || '',
     URL: it.url,
@@ -2671,15 +2858,15 @@ function downloadPrompts(format) {
   const today = new Date().toISOString().slice(0, 10);
 
   // 현재 view 필터가 프롬프트 타입이면 그것만, 아니면 전체
-  const currentType = ['prompt-image','prompt-video','prompt-code','guide'].includes(archiveViewFilter) ? archiveViewFilter : null;
+  const currentType = ['image','video','dev','guide'].includes(archiveViewFilter) ? archiveViewFilter : null;
   const targets = currentType ? items.filter(x => x.promptType === currentType) : items;
   if (!targets.length) { toast('현재 필터에 해당 항목 없음'); return; }
 
   if (format === 'md') {
     const TYPES = {
-      'prompt-image': '🎨 이미지 프롬프트',
-      'prompt-video': '🎬 영상 프롬프트',
-      'prompt-code':  '💻 시스템 프롬프트',
+      'image': '🎨 이미지 프롬프트',
+      'video': '🎬 영상 프롬프트',
+      'dev':  '💻 개발소스',
       'guide':        '📋 가이드'
     };
     const grouped = {};
@@ -2689,7 +2876,7 @@ function downloadPrompts(format) {
     }
     let md = `# 카톡 정리기 — 프롬프트/가이드 모음\n\n`;
     md += `> 추출일: ${today}  |  총 ${targets.length}개\n\n---\n\n`;
-    const order = ['prompt-image','prompt-video','prompt-code','guide'];
+    const order = ['image','video','dev','guide'];
     for (const t of order) {
       if (!grouped[t]) continue;
       md += `## ${TYPES[t]} (${grouped[t].length})\n\n`;
@@ -2710,9 +2897,9 @@ function downloadPrompts(format) {
   } else if (format === 'xlsx') {
     if (typeof XLSX === 'undefined') { toast('SheetJS 미로딩'); return; }
     const TYPES = {
-      'prompt-image': '이미지 프롬프트',
-      'prompt-video': '영상 프롬프트',
-      'prompt-code':  '시스템 프롬프트',
+      'image': '이미지 프롬프트',
+      'video': '영상 프롬프트',
+      'dev':  '개발소스',
       'guide':        '가이드'
     };
     const wb = XLSX.utils.book_new();
@@ -2756,8 +2943,39 @@ function openSettings() {
   $('setting-key').value = S.get('gemini_key');
   $('setting-model').value = S.get('gemini_model') || 'gemini-2.5-flash';
   renderCatEditList();
+  renderPromptRulesEdit();
   $('learned-count').textContent = Object.keys(getLearned()).length;
   $('modal-settings').classList.add('show');
+}
+
+function renderPromptRulesEdit() {
+  const rules = getPromptRules();
+  const root = $('prompt-rules-edit');
+  if (!root) return;
+  root.textContent = '';
+  const order = ['image', 'video', 'dev', 'guide'];
+  for (const type of order) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:10px;';
+    const lab = document.createElement('div');
+    lab.style.cssText = 'font-size:12px;font-weight:700;margin-bottom:4px;';
+    lab.textContent = rules[type].label;
+    const ta = document.createElement('textarea');
+    ta.id = 'prompt-rule-' + type;
+    ta.value = rules[type].keywords;
+    ta.rows = 2;
+    ta.style.cssText = 'width:100%;font-family:inherit;font-size:11px;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);resize:vertical;';
+    wrap.appendChild(lab);
+    wrap.appendChild(ta);
+    root.appendChild(wrap);
+  }
+}
+
+function resetPromptRules() {
+  if (!confirm('프롬프트 분류 키워드를 기본값으로 되돌릴까요?')) return;
+  S.del('prompt_rules');
+  renderPromptRulesEdit();
+  toast('기본 키워드로 복원');
 }
 function closeSettings() { $('modal-settings').classList.remove('show'); }
 
@@ -2862,6 +3080,26 @@ function saveSettings() {
   if (k && !k.startsWith('AIza')) return toast('Gemini 키는 AIza로 시작해야 합니다');
   if (k) S.set('gemini_key', k);
   S.set('gemini_model', $('setting-model').value);
+  // 프롬프트 룰 저장
+  const baseRules = getPromptRules();
+  const newRules = {};
+  let rulesChanged = false;
+  for (const type of ['image', 'video', 'dev', 'guide']) {
+    const ta = $('prompt-rule-' + type);
+    const newKw = ta ? ta.value.trim() : baseRules[type].keywords;
+    if (newKw !== baseRules[type].keywords) rulesChanged = true;
+    newRules[type] = { label: baseRules[type].label, keywords: newKw };
+  }
+  savePromptRules(newRules);
+  // 룰 바뀌면 기존 항목 promptType 재계산
+  if (rulesChanged) {
+    const items = getItems();
+    for (const it of items) {
+      if (it.content) it.promptType = detectPromptType(it.content);
+    }
+    saveItems(items);
+    if (typeof renderArchive === 'function') renderArchive();
+  }
   closeSettings();
   toast('설정 저장됨');
 }
@@ -2961,6 +3199,30 @@ function init() {
     }
     if (changed) saveItems(items);
     S.set('prompt_backfilled_v1', '1');
+  }
+  // 카테고리 마이그레이션 (구버전 카테고리 → 신버전, 한 번만)
+  if (!S.get('cat_migrated_v2')) {
+    const items = getItems();
+    let cm = 0;
+    for (const it of items) {
+      if (it.category && CAT_MIGRATE[it.category]) {
+        it.category = CAT_MIGRATE[it.category];
+        cm++;
+      }
+    }
+    if (cm) saveItems(items);
+    // 사용자 카테고리 목록도 마이그레이션
+    const cats = getCategories();
+    let cc = false;
+    const out = [];
+    for (const c of cats) {
+      const mapped = CAT_MIGRATE[c] || c;
+      if (mapped !== c) cc = true;
+      if (!out.includes(mapped)) out.push(mapped);
+    }
+    if (cc) saveCategories(out);
+    S.set('cat_migrated_v2', '1');
+    if (cm) console.log(`[migrate] ${cm} items remapped to new categories`);
   }
   // tab handlers
   $$('.tab').forEach(t => {
