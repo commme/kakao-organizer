@@ -889,6 +889,19 @@ label {
   margin-bottom: 8px;
   color: var(--text);
 }
+.a-url {
+  display: block;
+  font-size: 11px;
+  color: var(--info);
+  word-break: break-all;
+  margin: 4px 0 8px;
+  padding: 4px 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 4px;
+  text-decoration: none;
+  font-family: ui-monospace, monospace;
+}
+.a-url:hover { background: rgba(59, 130, 246, 0.18); text-decoration: underline; }
 .archive-item .a-meta { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; }
 .archive-item .a-actions { position: absolute; top: 8px; right: 8px; display: none; gap: 4px; }
 .archive-item:hover .a-actions { display: flex; }
@@ -1529,9 +1542,11 @@ function detectPromptType(text) {
   return null;
 }
 
-// 요약 가능한 URL인지 판단 (안전한 http/https URL이면 모두 OK)
+// 요약 가능한지 판단: 안전한 URL이거나, 30자 이상 텍스트 메모
 function isSummarizable(item) {
-  return !!(item.url && isSafeUrl(item.url));
+  if (item.url && isSafeUrl(item.url)) return true;
+  if (item.content && item.content.trim().length >= 30) return true;
+  return false;
 }
 
 /* ===========================================================
@@ -2650,6 +2665,16 @@ function makeArchiveItem(it, isTrash) {
   c.textContent = it.content || '(내용 없음)';
   div.appendChild(c);
 
+  // URL 직접 표시 (도메인만으로는 부족)
+  if (it.url && isSafeUrl(it.url)) {
+    const u = document.createElement('a');
+    u.className = 'a-url';
+    u.href = it.url; u.target = '_blank'; u.rel = 'noopener';
+    u.textContent = it.url.length > 70 ? it.url.slice(0, 67) + '…' : it.url;
+    u.onclick = (e) => e.stopPropagation();
+    div.appendChild(u);
+  }
+
   // AI 요약 표시
   if (it.summary) {
     const sum = document.createElement('div');
@@ -2698,8 +2723,8 @@ function makeArchiveItem(it, isTrash) {
       };
       acts.appendChild(copyBtn);
     }
-    // URL 항목 → AI 요약 버튼 (이미 요약된 건 다시 요약 가능)
-    if (it.url && isSafeUrl(it.url)) {
+    // URL 또는 30자 이상 메모 → AI 요약 버튼
+    if (isSummarizable(it)) {
       const sumBtn = document.createElement('button');
       sumBtn.title = it.summary ? 'AI 다시 요약' : 'AI로 요약';
       sumBtn.textContent = it.summary ? '🔄' : '🤖';
