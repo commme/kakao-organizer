@@ -192,6 +192,7 @@ Gemini API 키를 입력하면:
 
 ## 만든 사람
 
-© 2026 COMMME · eunhwanyu87@gmail.com
+© 2026 COMMME
 
-오픈소스 · 누구나 자유롭게 사용 가능. 피드백/버그는 이메일로.
+오픈소스 · 누구나 자유롭게 사용 가능. 피드백/버그는 GitHub Issues로:
+https://github.com/commme/kakao-organizer/issues
